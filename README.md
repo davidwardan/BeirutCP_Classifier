@@ -59,6 +59,12 @@ pip install -r requirements.txt
 ```
 Remember to replace the path to the repository with the correct path on your machine.
 
+## Classifier Gradio Interface
+To run the classifier UI feature, use the following command:
+```bash
+python -m Classification_UI
+```
+
 ## Todo:
 The following tasks are planned to be implemented in the future:
 
