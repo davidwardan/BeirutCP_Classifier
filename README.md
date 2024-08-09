@@ -20,11 +20,13 @@ The repository contains the code for the following tasks:
 2. Model Training with Transfer Learning
 3. Model Optimization (Hyperparameter Tuning)
 4. Model Prediction and Evaluation
-5. Model Interpretation (LIME)
+5. Model Interpretation (LIME, SHAP)
 6. Model Deployment
-7. Web Application
+7. Gradio Interface
 8. Dockerization
 9. Automated Data Collection
+
+Refer to the [Todo](#todo) section for the tasks that are in progress or planned to be implemented in the future.
 ######
 The repository also contains the trained models and part of the dataset used in the project. The full dataset is not included in the repository due to copyright issues.
 ## Construction Periods
