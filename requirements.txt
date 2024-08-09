@@ -7,3 +7,5 @@ matplotlib~=3.5.1
 gradio~=4.29.0
 opencv-python
 lime
+shap
+ipython

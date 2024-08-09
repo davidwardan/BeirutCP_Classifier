@@ -73,9 +73,8 @@ The following tasks are planned to be implemented in the future:
 - [ ] Model Optimization (Hyperparameter Tuning)
 - [x] Model Prediction and Evaluation
 - [x] Model Interpretation (LIME)
+- [x] Model Interpretation (SHAP)
 - [x] Gradio Interface
-- [ ] Model Deployment
-- [ ] Web Application
 - [ ] Dockerization
 - [ ] Documentation
 - [ ] Automated Data Collection

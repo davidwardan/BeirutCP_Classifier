@@ -6,7 +6,19 @@ from utils import utils
 from config import Config
 
 
-def main(top_classes=3, explain=False):
+def main(top_classes=3, lime=False, shap=False):
+    """
+    Main function to run the classification UI
+    :param top_classes: Number of top classes to display
+    :param lime: Boolean to enable LIME explanation
+    :param shap: Boolean to enable SHAP explanation
+    :return: None
+
+    Note: The function is not returning anything, it is launching the UI
+    If lime or shap are set to True, the UI will display the explanation image
+    If lime and shao are set to True, the UI will display the LIME explanation image
+    """
+
     # define configuration
     config = Config()
 
@@ -25,16 +37,20 @@ def main(top_classes=3, explain=False):
         inp = utils.norm_image(inp)
         prediction = model.predict(inp).flatten()
         confidences = {config.labels[i]: float(prediction[i]) for i in range(len(config.labels))}
-        if explain:
+        if lime:
             # TODO: Solve the issue with the image being displayed with burnt colors
             explained_image = utils.Lime_explain_instance(model, inp.reshape(config.image_size, config.image_size, 3),
                                                           num_samples=1000, num_features=10)
+            return confidences, explained_image
+        elif shap:
+            explained_image = utils.shapley_explain_instance(model, inp, labels=config.labels,
+                                                             evals=1000, top_labels=32)
             return confidences, explained_image
         else:
             return confidences
 
     # define demo
-    if explain:
+    if lime or shap:
         demo = gr.Interface(
             fn=classify_image,
             inputs=gr.Image(label="Input Image"),
@@ -57,4 +73,4 @@ def main(top_classes=3, explain=False):
 
 
 if __name__ == "__main__":
-    main(explain=True)
+    main(shap=True)

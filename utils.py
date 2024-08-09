@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 
 class utils:
@@ -34,21 +35,31 @@ class utils:
         plt.savefig(save_path, bbox_inches='tight')
 
     @staticmethod
-    def Lime_explain_instance(model, image, num_samples: int, num_features: int, save_path: str = None):
+    def Lime_explain_instance(model, image, num_samples: int, num_features: int):
         from lime import lime_image
         from skimage.segmentation import mark_boundaries
-
         explainer = lime_image.LimeImageExplainer()
         explanation = explainer.explain_instance(image.astype('double'), model.predict,
-                                          top_labels=3, hide_color=0, num_samples=num_samples)
-
+                                                 top_labels=3, hide_color=0, num_samples=num_samples)
         temp, mask = explanation.get_image_and_mask(explanation.top_labels[0], positive_only=False,
                                                     num_features=num_features, hide_rest=False)
-        # plt.imshow(mark_boundaries(temp / 2 + 0.5, mask))
-        # if save_path is not None:
-        #     plt.savefig(save_path, bbox_inches='tight')
-        # else:
-        #     plt.show()
-
-        # return image with mask
         return mark_boundaries(temp / 2 + 0.5, mask)
+
+    # TODO: Fix the issue of having to save the plot to a file and then read it back
+    # TODO: Fix the issue with getting wrong top labels (the labels are not the same as the ones in the model)
+    @staticmethod
+    def shapley_explain_instance(model, image, labels: list = None, evals: int = 5000, top_labels: int = 3):
+        import shap
+        masker = shap.maskers.Image("inpaint_ns", image[0].shape)  # other masker options: inpaint_telea
+        explainer = shap.Explainer(model, masker, output_names=labels)
+        shap_values = explainer(image, max_evals=evals, batch_size=100,
+                                outputs=shap.Explanation.argsort.flip[:top_labels])
+        # return shap.image_plot(shap_values)
+        shap.image_plot(shap_values)
+
+        # read the plot to variable
+        plt.savefig('shap.png')
+        img = plt.imread('shap.png')
+        os.remove('shap.png')
+        return img
+
