@@ -13,7 +13,7 @@ This repository contains the code for the thesis project "Characterization of th
 ######
 This work was part of my Master's thesis project at the American University of Beirut (AUB).
 The project aimed to predict the construction period of buildings in Beirut using street-view images.
-The project was supervised by Prof. Mayssa Dabaghi, Prof. Sirine Taleb, and Prof. Aram Yeretzian.
+This work was supervised by Prof. Mayssa Dabaghi, Prof. Sirine Taleb, and Prof. Aram Yeretzian.
 ######
 The repository contains the code for the following tasks:
 1. Data Preprocessing 
@@ -69,19 +69,23 @@ python -m Classification_UI
 ## Todo:
 The following tasks are planned to be implemented in the future:
 
-- [x] Data Preprocessing
+- [ ] Data Preprocessing
 - [x] Model Training with Transfer Learning
 - [ ] Model Optimization (Hyperparameter Tuning)
 - [x] Model Prediction and Evaluation
 - [x] Model Interpretation (LIME)
 - [x] Model Interpretation (SHAP)
 - [x] Gradio Interface
+- [ ] Ability to download model weights
+- [ ] Ability to access collected data
 - [ ] Dockerization
 - [ ] Documentation
-- [ ] Automated Data Collection
+- [ ] Automated Data Collection from Google Street View API
+- [ ] Ability to recognize if the image does not contain a building
 - [ ] Ability to provide additional information about the building
-- [ ] Ability to recognize if the building is not from Beirut
-- [ ] Ability to recognize if the building is not a building
+- [ ] Ability to recognize if the building is highly damaged
+- [ ] Ability to recognize if the building has been renovated
+- [ ] Ability to recognize if the architecture is not typical for Beirut
 
 ## License
 This project is licensed under the MIT License—see the `LICENSE` file for details.
