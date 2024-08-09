@@ -1,5 +1,5 @@
 # Beirut Construction Period Classifier 
-![image](100_images.png)
+![image](cover_img.png)
 
 ![alt text](https://img.shields.io/badge/Status-Under%20Development-red)
 ![alt text](https://img.shields.io/badge/Version-0.1.0-blue)
@@ -68,11 +68,12 @@ python -m Classification_UI
 ## Todo:
 The following tasks are planned to be implemented in the future:
 
-- [ ] Data Preprocessing
+- [x] Data Preprocessing
 - [x] Model Training with Transfer Learning
 - [ ] Model Optimization (Hyperparameter Tuning)
 - [x] Model Prediction and Evaluation
-- [ ] Model Interpretation (LIME)
+- [x] Model Interpretation (LIME)
+- [x] Gradio Interface
 - [ ] Model Deployment
 - [ ] Web Application
 - [ ] Dockerization

@@ -2,7 +2,8 @@ numpy~=1.26.4
 tensorflow~=2.15.0
 keras~=2.15.0
 pandas~=1.4.1
-scikit-learn~=1.0.2
+scikit-learn~=1.5.1
 matplotlib~=3.5.1
 gradio~=4.29.0
 opencv-python
+lime

@@ -2,4 +2,3 @@
 /saved_models/*
 /outputs/*
 /input/*
-!/all_in_one.py
