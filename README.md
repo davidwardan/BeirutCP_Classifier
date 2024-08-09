@@ -64,6 +64,7 @@ To run the classifier UI feature, use the following command:
 ```bash
 python -m Classification_UI
 ```
+![image](UI_example.png)
 
 ## Todo:
 The following tasks are planned to be implemented in the future:

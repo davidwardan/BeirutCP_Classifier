@@ -55,7 +55,7 @@ def main(top_classes=3, lime=False, shap=False):
             fn=classify_image,
             inputs=gr.Image(label="Input Image"),
             outputs=[gr.Label(label='Top 3 classes', num_top_classes=top_classes),
-                     gr.Image(label="Model Interpretation")],
+                     gr.Image(label="Model Interpretation", width=750, height=500)],
             title="Construction Period Classifier",
             description="Upload an image to classify",
         )
@@ -73,4 +73,4 @@ def main(top_classes=3, lime=False, shap=False):
 
 
 if __name__ == "__main__":
-    main(shap=True)
+    main(lime=True)
