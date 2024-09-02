@@ -4,39 +4,36 @@ from keras.optimizers import Adam, SGD
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping
 import keras.metrics
 
-from utils import utils
-
 import pandas as pd
-
 import random
-import os
 
+from utils import processing
 from SwinT import SwinTransformer
 from config import Config
 
 
-def main():
+def main(seed: int = 42):
     # set seed for reproducibility
-    random.seed(235)
+    random.seed(seed)
 
     # define configuration
     config = Config()
 
     # get input, normalize and print shapes
-    x_train = utils.load_data(config.in_dir + '/train/x_train.npy')
-    y_train = utils.load_data(config.in_dir + '/train/y_train.npy')
+    x_train = processing.load_data(config.in_dir + '/train/x_train.npy')
+    y_train = processing.load_data(config.in_dir + '/train/y_train.npy')
 
-    x_train = utils.norm_image(x_train)
-    y_train = utils.to_categorical(y_train, config.num_classes)
+    x_train = processing.norm_image(x_train)
+    y_train = processing.to_categorical(y_train, config.num_classes)
 
     print(f"x_train shape: {x_train.shape} - y_train shape: {y_train.shape}")
 
     # if validation input is available
     if config.val == 1:
-        x_val = utils.load_data(config.in_dir + '/val/x_val.npy')
-        y_val = utils.load_data(config.in_dir + '/val/y_val.npy')
-        x_val = utils.norm_image(x_val)
-        y_val = utils.to_categorical(y_val, config.num_classes)
+        x_val = processing.load_data(config.in_dir + '/val/x_val.npy')
+        y_val = processing.load_data(config.in_dir + '/val/y_val.npy')
+        x_val = processing.norm_image(x_val)
+        y_val = processing.to_categorical(y_val, config.num_classes)
         print(f"x_val shape: {x_val.shape} - y_val shape: {y_val.shape}")
 
     print('Input stored...')
@@ -85,7 +82,7 @@ def main():
         reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.9,
                                       patience=3, min_lr=config.lr_min)
 
-        early_stop = EarlyStopping(monitor='val_accuracy', patience=config.ealry_stop_patience)
+        early_stop = EarlyStopping(monitor='val_accuracy', patience=config.early_stop_patience)
 
         history = model.fit(x_train, y_train, batch_size=config.batch_size, shuffle=True,
                             epochs=config.num_epochs, verbose=2, callbacks=[early_stop, reduce_lr],
@@ -94,7 +91,7 @@ def main():
         reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.9,
                                       patience=3, min_lr=config.lr_min)
 
-        early_stop = EarlyStopping(monitor='accuracy', patience=config.ealry_stop_patience)
+        early_stop = EarlyStopping(monitor='accuracy', patience=config.early_stop_patience)
 
         history = model.fit(x_train, y_train, batch_size=config.batch_size, shuffle=True,
                             epochs=config.num_epochs, verbose=2, callbacks=[early_stop, reduce_lr])

@@ -1,4 +1,18 @@
-/dataset/*
-/saved_models/*
-/outputs/*
-/input/*
+# IntelliJ
+.idea
+*.iml
+out
+gen
+
+# Data files
+/input
+/output
+/dataset
+
+# Weight files
+/saved_models
+
+# Logs
+/logs
+/.cadence
+/flagged

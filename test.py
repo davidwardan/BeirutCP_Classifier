@@ -4,7 +4,7 @@ import keras
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
 
-from utils import utils
+from utils import processing
 from config import Config
 from metrics import metrics
 
@@ -15,10 +15,10 @@ def main():
 
     # load test data
     print("loading test data....")
-    x_test = utils.load_data(config.in_dir + '/test/x_test.npy')
-    y_test = utils.load_data(config.in_dir + '/test/y_test.npy')
-    x_test = utils.norm_image(x_test)
-    y_test = utils.to_categorical(y_test, config.num_classes)
+    x_test = processing.load_data(config.in_dir + '/test/x_test.npy')
+    y_test = processing.load_data(config.in_dir + '/test/y_test.npy')
+    x_test = processing.norm_image(x_test)
+    y_test = processing.to_categorical(y_test, config.num_classes)
 
     print(f"x_test shape: {x_test.shape} - y_test shape: {y_test.shape}")
 

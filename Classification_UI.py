@@ -3,6 +3,7 @@ import cv2
 import keras
 
 from utils import utils
+from utils import processing
 from config import Config
 
 
@@ -34,7 +35,7 @@ def main(top_classes=3, lime=False, shap=False):
         # inp = inp[..., ::-1]  # BGR to RGB
         inp = cv2.resize(inp, (config.image_size, config.image_size))
         inp = inp.reshape(1, config.image_size, config.image_size, 3)
-        inp = utils.norm_image(inp)
+        inp = processing.norm_image(inp)
         prediction = model.predict(inp).flatten()
         confidences = {config.labels[i]: float(prediction[i]) for i in range(len(config.labels))}
         if lime:

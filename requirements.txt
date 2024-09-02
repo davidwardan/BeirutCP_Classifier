@@ -9,3 +9,5 @@ opencv-python
 lime
 shap
 ipython
+tqdm~=4.66.4
+Pillow~=10.4.0

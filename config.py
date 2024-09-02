@@ -16,7 +16,7 @@ class Config:
 
     optimizer = 'adam'  # 'adam' or 'sgd'
 
-    ealry_stop_patience = 5
+    early_stop_patience = 5
 
     transfer_learning = 1  # 1 if transfer learning is used, 0 otherwise
 
