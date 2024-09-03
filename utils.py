@@ -228,6 +228,32 @@ class processing:
         return balanced_data, excess_data
 
     @staticmethod
+    def mirror_data(data: list):
+        """
+        This function mirrors the data horizontally.
+        :param data: List of tuples (image, label)
+        :return: List of tuples (image, label) with mirrored data
+        """
+        mirrored_data = []
+        for image, label in data:
+            mirrored_image = np.fliplr(image)
+            mirrored_data.append((mirrored_image, label))
+        return mirrored_data
+
+    @staticmethod
+    def random_crop(image: np.ndarray, crop_size: int):
+        """
+        This function randomly crops an image.
+        :param image: Image to crop
+        :param crop_size: Size of the crop (e.g., 24)
+        :return: Cropped image
+        """
+        h, w, _ = image.shape
+        x = np.random.randint(0, w - crop_size)
+        y = np.random.randint(0, h - crop_size)
+        return image[y:y + crop_size, x:x + crop_size]
+
+    @staticmethod
     def shuffle_data(data: list, random_state=None):
         """
         This function shuffles the data.
@@ -238,6 +264,16 @@ class processing:
         random.seed(random_state)
         random.shuffle(data)
         return data
+
+    @staticmethod
+    def get_images_by_label(data: list, label: int):
+        """
+        This function returns all the images with a specific label.
+        :param data: List of tuples (image, label)
+        :param label: The label to search for
+        :return: List of images with the specified label
+        """
+        return [image for image, l in data if l == label]
 
 
 class visualization:

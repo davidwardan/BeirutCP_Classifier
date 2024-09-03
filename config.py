@@ -2,7 +2,7 @@ import time
 
 
 class Config:
-    labels = ['pre1935', '1935-1955', '1956-1971', '1971-1990', 'post1990']
+    labels = ['pre1935', '1935-1955', '1956-1971', '1972-1990', 'post1990']
 
     num_classes = len(labels)
 

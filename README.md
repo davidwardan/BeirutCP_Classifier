@@ -71,13 +71,14 @@ python -m Classification_UI
 ## Todo:
 The following tasks are planned to be implemented in the future:
 
-- [ ] Data Preprocessing
+- [x] Data Preprocessing
 - [x] Model Training with Transfer Learning
-- [ ] Model Optimization (Hyperparameter Tuning)
+- [ ] Model Optimization (Bayesian Optimization)
 - [x] Model Prediction and Evaluation
 - [x] Model Interpretation (LIME)
 - [x] Model Interpretation (SHAP)
 - [x] Gradio Interface
+- [ ] Tensorflow to Pytorch Conversion (most important)
 - [ ] Ability to download model weights
 - [ ] Ability to access collected data
 - [ ] Dockerization

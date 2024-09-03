@@ -6,7 +6,6 @@ config = Config()
 
 
 def main(in_dir: str, out_dir: str):
-
     data = []
     # Load the data
     for label in config.labels:
@@ -18,11 +17,24 @@ def main(in_dir: str, out_dir: str):
     # Plot the distribution of the data
     visualization.plot_distribution(train_data, val_data, test_data, list(range(config.num_classes)))
 
-    # TODO: add augmentation before balancing the data (oversampling)
-    # Balance the data
-    train_data, excess_data = processing.balance_data(train_data, 42)
+    # Get all data that needs to be augmented
+    data_pre1935 = processing.get_images_by_label(train_data, config.labels.index('pre1935'))
+    data_1972_1990 = processing.get_images_by_label(train_data, config.labels.index('1972-1990'))
 
-    # Add excess data to the test set
+    # Augment the data
+    data_pre1935_mirrored = processing.mirror_data(data_pre1935)
+    data_1972_1990_mirrored = processing.mirror_data(data_1972_1990)
+    data_1972_1990_cropped = processing.random_crop(data_1972_1990, 0.1 * config.image_size)  # 10% crop
+
+    # Add the augmented data to the training data
+    train_data += data_pre1935_mirrored
+    train_data += data_1972_1990_mirrored
+    train_data += data_1972_1990_cropped
+
+    # Balance the data
+    train_data, excess_data = processing.balance_data(train_data)
+
+    # Add the excess data to the test data
     test_data += excess_data
 
     # shuffle the data
