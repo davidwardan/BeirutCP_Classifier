@@ -1,0 +1,20 @@
+# IntelliJ project files
+.idea
+*.iml
+out
+gen
+
+
+
+
+/output/
+/input/
+/flagged/
+/dataset/
+/.cadence/
+/read_data.py
+/test.py
+/train.py
+/UI_example.png
+/README.md
+/cover_img.png

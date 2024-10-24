@@ -7,8 +7,8 @@ import keras.metrics
 import pandas as pd
 import random
 
-from utils import processing
-from SwinT import SwinTransformer
+from src.utils import processing
+from src.SwinT import SwinTransformer
 from config import Config
 
 

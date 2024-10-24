@@ -16,3 +16,14 @@ gen
 /logs
 /.cadence
 /flagged
+
+# weights
+weights/SwinT
+
+# data
+data/test
+data/train
+data/val
+
+# DS_Store
+.DS_Store

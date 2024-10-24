@@ -1,4 +1,4 @@
-from utils import processing, visualization
+from src.utils import processing, visualization
 from config import Config
 
 # Define the configuration

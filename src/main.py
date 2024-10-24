@@ -2,8 +2,8 @@ import gradio as gr
 import cv2
 import keras
 
-from utils import utils
-from utils import processing
+from src.utils import utils
+from src.utils import processing
 from config import Config
 
 
@@ -74,4 +74,4 @@ def main(top_classes=3, lime=False, shap=False):
 
 
 if __name__ == "__main__":
-    main(lime=True)
+    main()

@@ -4,9 +4,9 @@ import keras
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
 
-from utils import processing
+from src.utils import processing
 from config import Config
-from metrics import metrics
+from src.metrics import metrics
 
 
 def main():

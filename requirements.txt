@@ -6,8 +6,7 @@ scikit-learn~=1.5.1
 matplotlib~=3.5.1
 gradio~=4.29.0
 opencv-python
-lime
-shap
-ipython
+#lime
+#shap
 tqdm~=4.66.4
 Pillow~=10.4.0
