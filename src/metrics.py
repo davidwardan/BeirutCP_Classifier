@@ -2,80 +2,108 @@ import numpy as np
 from sklearn.metrics import confusion_matrix
 
 
-class metrics:
+class Metrics:
 
     @staticmethod
-    # calculate accuracy
     def get_accuracy(output: np.ndarray, true: np.ndarray) -> float:
-        array1 = np.array(output)
-        array2 = np.array(true)
+        """
+        Calculate accuracy as the ratio of correct predictions to total samples.
 
-        array3 = np.argmax(array1, axis=1)
-        array4 = np.argmax(array2, axis=1)
+        Args:
+            output (np.ndarray): Model predictions (probabilities or logits).
+            true (np.ndarray): Ground truth labels (one-hot or categorical).
 
-        accuracy = np.sum(array3 == array4) / len(array3)
-
-        return accuracy
-
-    @staticmethod
-    # get confusion matrix
-    def get_confusion_matrix(output: np.ndarray, true: np.ndarray, normalized: bool = True) -> np.ndarray:
-        array1 = np.array(output)
-        array2 = np.array(true)
-
-        array3 = np.argmax(array1, axis=1)
-        array4 = np.argmax(array2, axis=1)
-
-        if normalized:
-            cm = confusion_matrix(array4, array3, normalize='true')
-        else:
-            cm = confusion_matrix(array4, array3, normalize=None)
-
-        return cm
+        Returns:
+            float: Accuracy value.
+        """
+        preds = np.argmax(output, axis=1)
+        labels = np.argmax(true, axis=1)
+        return np.mean(preds == labels)
 
     @staticmethod
-    # calculate m_score
+    def get_confusion_matrix(
+        output: np.ndarray, true: np.ndarray, normalized: bool = True
+    ) -> np.ndarray:
+        """
+        Calculate the confusion matrix.
+
+        Args:
+            output (np.ndarray): Model predictions (probabilities or logits).
+            true (np.ndarray): Ground truth labels (one-hot or categorical).
+            normalized (bool): If True, normalize the confusion matrix.
+
+        Returns:
+            np.ndarray: Confusion matrix.
+        """
+        preds = np.argmax(output, axis=1)
+        labels = np.argmax(true, axis=1)
+        return confusion_matrix(labels, preds, normalize="true" if normalized else None)
+
+    @staticmethod
     def get_mscore(output: np.ndarray, true: np.ndarray) -> float:
-        array1 = np.array(output)
-        array2 = np.array(true)
+        """
+        Calculate the m_score, representing the average absolute difference
+        between predictions and true labels.
 
-        array3 = np.absolute(np.subtract(array1, array2))
-        m_score = np.sum(array3) / len(array3)
+        Args:
+            output (np.ndarray): Model predictions (probabilities).
+            true (np.ndarray): Ground truth labels (probabilities).
 
-        return m_score
+        Returns:
+            float: m_score value.
+        """
+        return np.mean(np.abs(output - true))
 
     @staticmethod
-    # calculate normalized m_score
     def get_normscore(cm_norm: np.ndarray, num_classes: int) -> float:
-        matrix = np.abs(np.arange(num_classes)[:, None] - np.arange(num_classes))
+        """
+        Calculate a normalized m_score based on the confusion matrix.
 
-        score = np.multiply(cm_norm, matrix)
-        norm_m_score = np.sum(score) / 5
-        return norm_m_score
+        Args:
+            cm_norm (np.ndarray): Normalized confusion matrix.
+            num_classes (int): Number of classes.
+
+        Returns:
+            float: Normalized m_score.
+        """
+        distance_matrix = np.abs(
+            np.arange(num_classes)[:, None] - np.arange(num_classes)
+        )
+        weighted_score = np.multiply(cm_norm, distance_matrix)
+        return np.sum(weighted_score) / num_classes
 
     @staticmethod
-    # calculate precision
     def get_precision(output: np.ndarray, true: np.ndarray) -> float:
-        array1 = np.array(output)
-        array2 = np.array(true)
+        """
+        Calculate the average precision score.
 
-        array3 = np.argmax(array1, axis=1)
-        array4 = np.argmax(array2, axis=1)
+        Args:
+            output (np.ndarray): Model predictions (probabilities or logits).
+            true (np.ndarray): Ground truth labels (one-hot or categorical).
 
-        cm = confusion_matrix(array4, array3)
-        precision = np.diag(cm) / np.sum(cm, axis=0)
-        return np.average(precision)
+        Returns:
+            float: Precision value.
+        """
+        preds = np.argmax(output, axis=1)
+        labels = np.argmax(true, axis=1)
+        cm = confusion_matrix(labels, preds)
+        precision = np.diag(cm) / (np.sum(cm, axis=0) + 1e-12)  # Avoid division by zero
+        return np.nanmean(precision)  # Avoid NaN values with np.nanmean
 
     @staticmethod
-    # calculate recall value
     def get_recall(output: np.ndarray, true: np.ndarray) -> float:
-        array1 = np.array(output)
-        array2 = np.array(true)
+        """
+        Calculate the average recall score.
 
-        array3 = np.argmax(array1, axis=1)
-        array4 = np.argmax(array2, axis=1)
+        Args:
+            output (np.ndarray): Model predictions (probabilities or logits).
+            true (np.ndarray): Ground truth labels (one-hot or categorical).
 
-        cm = confusion_matrix(array4, array3)
-        recall = np.diag(cm) / np.sum(cm, axis=1)
-        return np.average(recall)
-
+        Returns:
+            float: Recall value.
+        """
+        preds = np.argmax(output, axis=1)
+        labels = np.argmax(true, axis=1)
+        cm = confusion_matrix(labels, preds)
+        recall = np.diag(cm) / (np.sum(cm, axis=1) + 1e-12)  # Avoid division by zero
+        return np.nanmean(recall)  # Avoid NaN values with np.nanmean
