@@ -7,7 +7,7 @@ WORKDIR /BeirutCP_Classifier
 # Copy the current directory contents into the container
 COPY . /BeirutCP_Classifier
 
-# Install necessary system dependencies for h5py and opencv-python
+# Install necessary system dependencies for PyTorch, h5py, and opencv-python
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libhdf5-dev \
@@ -18,15 +18,17 @@ RUN apt-get update && apt-get install -y \
     libsm6 \
     libxext6 \
     libxrender-dev \
+    libjpeg-dev \
     && apt-get clean
 
 # Update pip
 RUN pip install --upgrade pip
 
-# Install a pre-built h5py wheel to avoid building from source
-RUN pip install h5py --no-binary=h5py
+# Install PyTorch and Torchvision with appropriate CUDA (CPU-only as default)
+# If GPU support is required, replace 'cpu' with 'cu118' or the desired CUDA version
+RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
-# Install Python packages specified in requirements.txt (skip h5py, already installed)
+# Install Python packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt --use-feature=2020-resolver
 
 # Expose port 8080
