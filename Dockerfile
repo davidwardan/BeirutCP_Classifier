@@ -27,6 +27,7 @@ RUN pip install --upgrade pip
 # Install PyTorch and Torchvision with appropriate CUDA (CPU-only as default)
 # If GPU support is required, replace 'cpu' with 'cu118' or the desired CUDA version
 RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 
 # Install Python packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt --use-feature=2020-resolver

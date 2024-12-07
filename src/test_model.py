@@ -1,97 +1,140 @@
 import os
 import torch
+import torch.nn as nn
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
-from src.utils import processing
+from tqdm import tqdm
+import numpy as np
+from src.utils import Processing
 from config import Config
 from src.metrics import metrics
+import logging
+from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms
+from PIL import Image
+from src.swint_model import SwinTClassifier
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+
+class NumpyDataset(Dataset):
+    def __init__(self, x, y, transform=None):
+        self.x = x
+        self.y = y
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.x)
+
+    def __getitem__(self, idx):
+        image = self.x[idx]
+        label = self.y[idx]
+
+        # Ensure label is an integer
+        label = int(label)
+
+        # Convert image to PIL and apply transformations
+        image = (image * 255).astype(np.uint8)
+        image = Image.fromarray(image)
+        if self.transform:
+            image = self.transform(image)
+
+        return image, label
 
 
 def main():
     # Define configuration
     config = Config()
 
+    # Set device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     # Load test data
-    print("Loading test data....")
-    x_test = processing.load_data(config.in_dir + "/test/x_test.npy")
-    y_test = processing.load_data(config.in_dir + "/test/y_test.npy")
-    x_test = processing.norm_image(x_test)
-    y_test = processing.to_categorical(y_test, config.num_classes)
+    logger.info("Loading test data...")
+    try:
+        x_test = Processing.load_data(config.in_dir + "/test/x_test.npy")
+        y_test = Processing.load_data(config.in_dir + "/test/y_test.npy")
+        x_test = Processing.norm_image(x_test)
 
-    print(f"x_test shape: {x_test.shape} - y_test shape: {y_test.shape}")
+        # If labels are one-hot encoded, convert them to integer indices
+        if y_test.ndim > 1:
+            y_test = np.argmax(y_test, axis=1)
+        y_test = y_test.astype(np.int64)
 
-    # Convert test data to PyTorch tensors
-    x_test_tensor = torch.tensor(x_test, dtype=torch.float32)
-    y_test_tensor = torch.tensor(y_test.argmax(axis=1), dtype=torch.long)
+    except FileNotFoundError as e:
+        logger.error(f"Error loading test data: {e}")
+        return
 
-    # Load saved model
-    print("Loading model....")
-    if config.saved_model_dir:
-        model = torch.load(config.saved_model_dir)
-    else:
-        model = torch.load("saved_models/SwinT")
+    logger.info(f"x_test shape: {x_test.shape} - y_test shape: {y_test.shape}")
 
+    # Define transforms
+    test_transform = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+
+    # Create test dataset and loader
+    test_dataset = NumpyDataset(x_test, y_test, transform=test_transform)
+    test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
+
+    model = SwinTClassifier(
+        num_classes=config.num_classes,
+        transfer_learning=(config.transfer_learning == 1),
+    ).to(device)
+
+    # Load model weights
+    model_path = os.path.join(config.out_dir, "SwinT.pth")
+    if not os.path.exists(model_path):
+        logger.error(f"Model file not found at {model_path}.")
+        return
+    model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
 
-    # Check if the output directory exists
-    if not os.path.exists(config.out_dir):
-        os.makedirs(config.out_dir)
+    # Set up loss for integer-encoded targets
+    criterion = nn.CrossEntropyLoss()
 
-    # Predict on the test set
-    print("Predicting on test set....")
+    # Evaluate model
+    test_loss = 0.0
+    correct = 0
+    total = 0
+
+    y_true = []
+    y_pred = []
+
     with torch.no_grad():
-        y_pred_logits = model(x_test_tensor)
-        y_pred = torch.softmax(y_pred_logits, dim=1).cpu().numpy()
+        for inputs, labels in tqdm(test_loader, desc="Testing"):
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            test_loss += loss.item()
 
-    # Calculate accuracy
-    print("Calculating accuracy....")
-    accuracy = metrics.get_accuracy(y_pred, y_test)
+            # Predictions
+            _, predicted = outputs.max(1)
+            total += labels.size(0)
+            correct += predicted.eq(labels).sum().item()
 
-    # Calculate precision
-    print("Calculating precision....")
-    precision = metrics.get_precision(y_pred, y_test)
+            y_true.extend(labels.cpu().numpy())
+            y_pred.extend(predicted.cpu().numpy())
 
-    # Calculate recall
-    print("Calculating recall....")
-    recall = metrics.get_recall(y_pred, y_test)
-
-    # Calculate confusion matrix
-    print("Calculating confusion matrix....")
-    cm_normalized = metrics.get_confusion_matrix(y_pred, y_test)
-    cm = metrics.get_confusion_matrix(y_pred, y_test, normalized=False)
-
-    # Plot and save confusion matrices
-    disp = ConfusionMatrixDisplay(
-        confusion_matrix=cm_normalized, display_labels=config.labels
+    logger.info(
+        f"Test Loss: {test_loss / len(test_loader):.4f}, Accuracy: {100 * correct / total:.2f}%"
     )
-    disp.plot(cmap=plt.cm.Blues)
-    plt.savefig(os.path.join(config.out_dir, "confusion_matrix_norm.png"))
 
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=config.labels)
-    disp.plot(cmap=plt.cm.Blues)
-    plt.savefig(os.path.join(config.out_dir, "confusion_matrix.png"))
+    # Optionally, plot confusion matrix
+    if config.plot_confusion_matrix:
+        cm = metrics.confusion_matrix(y_true, y_pred)
+        disp = ConfusionMatrixDisplay(
+            confusion_matrix=cm, display_labels=config.class_names
+        )
+        disp.plot(cmap=plt.cm.Blues)
+        plt.show()
 
-    # Calculate custom scores
-    print("Calculating m_score....")
-    m_score = metrics.get_mscore(y_pred, y_test)
-    print("Calculating normalized m_score....")
-    norm_m_score = metrics.get_normscore(cm_normalized, num_classes=config.num_classes)
 
-    # Print all scores in summary
-    print(f"Accuracy: {accuracy}")
-    print(f"Precision: {precision}")
-    print(f"Recall: {recall}")
-    print(f"m_score: {m_score}")
-    print(f"Normalized m_score: {norm_m_score}")
-
-    # Optionally save scores to a dictionary
-    # scores = {
-    #     "accuracy": accuracy,
-    #     "precision": precision,
-    #     "recall": recall,
-    #     "m_score": m_score,
-    #     "norm_m_score": norm_m_score
-    # }
-
-    # Optionally save dictionary to a CSV file
-    # import pandas
+if __name__ == "__main__":
+    main()

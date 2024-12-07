@@ -20,15 +20,15 @@ class Config:
 
     transfer_learning = 1  # 1 if transfer learning is used, 0 otherwise
 
-    batch_size = 16
+    batch_size = 128 # higher batch size is faster but requires more memory
 
-    num_epochs = 20
+    num_epochs = 20 # max number of epochs 
 
-    loss = 'categorical_crossentropy'
+    loss = 'crossentropy'
 
     val = 1  # 1 if validation input is available, 0 otherwise
 
-    saved_model_dir = ""  # leave empty to access the thesis model
+    saved_model_dir = ""  # leave empty to defaul model
 
     in_dir = "input/"
 

@@ -1,45 +1,44 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 from torchvision.transforms import Normalize
 import numpy as np
-import pandas as pd
 import random
 
-from src.utils import processing
-from src.SwinT import SwinTransformer
+from src.utils import Processing
 from config import Config
+from tqdm import tqdm
+from torch.utils.data import Dataset
+from torchvision import transforms
+from PIL import Image
+from src.swint_model import SwinTClassifier
 
 
-class SwinTClassifier(nn.Module):
-    def __init__(self, input_shape, num_classes, transfer_learning=True):
-        super(SwinTClassifier, self).__init__()
-        if transfer_learning:
-            self.swin_transformer = SwinTransformer(
-                "swin_base_224", pretrained=True, include_top=False
-            )
-        else:
-            self.swin_transformer = SwinTransformer(
-                "swin_base_224", pretrained=False, include_top=False
-            )
+# Custom dataset class
+class NumpyDataset(Dataset):
+    def __init__(self, x, y, transform=None):
+        self.x = x
+        self.y = y
+        self.transform = transform
 
-        self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(
-            1024, 128
-        )  # Update input size based on feature dimension from SwinT
-        self.fc2 = nn.Linear(128, 64)
-        self.out = nn.Linear(64, num_classes)
-        self.dropout = nn.Dropout(0.2)
+    def __len__(self):
+        return len(self.x)
 
-    def forward(self, x):
-        x = self.swin_transformer(x)
-        x = self.flatten(x)
-        x = nn.ReLU()(self.fc1(x))
-        x = self.dropout(x)
-        x = nn.ReLU()(self.fc2(x))
-        x = self.out(x)
-        return x
+    def __getitem__(self, idx):
+        image = self.x[idx]
+        label = self.y[idx]
+
+        # Ensure label is an integer
+        label = int(label)
+
+        # Convert image to PIL and apply transformations
+        image = (image * 255).astype(np.uint8)
+        image = Image.fromarray(image)
+        if self.transform:
+            image = self.transform(image)
+
+        return image, label
 
 
 def main(seed: int = 42):
@@ -51,63 +50,91 @@ def main(seed: int = 42):
     config = Config()
 
     # Load and preprocess data
-    x_train = processing.load_data(config.in_dir + "/train/x_train.npy")
-    y_train = processing.load_data(config.in_dir + "/train/y_train.npy")
+    x_train = Processing.load_data(config.in_dir + "/train/x_train.npy")
+    y_train = Processing.load_data(config.in_dir + "/train/y_train.npy")
 
-    x_train = processing.norm_image(x_train)
-    y_train = processing.to_categorical(y_train, config.num_classes)
+    x_train = Processing.norm_image(x_train)
+
+    # Ensure labels are integers (required for CrossEntropyLoss)
+    if y_train.ndim > 1:
+        y_train = np.argmax(y_train, axis=1)
 
     print(f"x_train shape: {x_train.shape} - y_train shape: {y_train.shape}")
 
+    # Define transforms
+    train_transform = transforms.Compose(
+        [
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomRotation(15),
+            transforms.ColorJitter(
+                brightness=0.4, contrast=0.4, saturation=0.4, hue=0.2
+            ),
+            transforms.ToTensor(),
+            Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+
+    val_transform = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+
     if config.val == 1:
-        x_val = processing.load_data(config.in_dir + "/val/x_val.npy")
-        y_val = processing.load_data(config.in_dir + "/val/y_val.npy")
-        x_val = processing.norm_image(x_val)
-        y_val = processing.to_categorical(y_val, config.num_classes)
+        x_val = Processing.load_data(config.in_dir + "/val/x_val.npy")
+        y_val = Processing.load_data(config.in_dir + "/val/y_val.npy")
+
+        if y_val.ndim > 1:
+            y_val = np.argmax(y_val, axis=1)
+
         print(f"x_val shape: {x_val.shape} - y_val shape: {y_val.shape}")
 
-    # Convert data to PyTorch tensors
-    x_train_tensor = torch.tensor(x_train, dtype=torch.float32)
-    y_train_tensor = torch.tensor(np.argmax(y_train, axis=1), dtype=torch.long)
-
-    train_dataset = TensorDataset(x_train_tensor, y_train_tensor)
+    # Create datasets and loaders
+    train_dataset = NumpyDataset(x_train, y_train, transform=train_transform)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
 
     if config.val == 1:
-        x_val_tensor = torch.tensor(x_val, dtype=torch.float32)
-        y_val_tensor = torch.tensor(np.argmax(y_val, axis=1), dtype=torch.long)
-        val_dataset = TensorDataset(x_val_tensor, y_val_tensor)
+        val_dataset = NumpyDataset(x_val, y_val, transform=val_transform)
         val_loader = DataLoader(
             val_dataset, batch_size=config.batch_size, shuffle=False
         )
 
     # Initialize model
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = SwinTClassifier(
-        input_shape=config.input_shape,
         num_classes=config.num_classes,
         transfer_learning=(config.transfer_learning == 1),
-    )
-    model.trainable = True
+    ).to(device)
 
     # Define optimizer and loss function
-    if config.optimizer == "adam":
-        optimizer = optim.Adam(model.parameters(), lr=config.lr_max)
-    elif config.optimizer == "sgd":
-        optimizer = optim.SGD(model.parameters(), lr=config.lr_max)
-    else:
+    optimizer = {
+        "adam": optim.Adam,
+        "sgd": optim.SGD,
+    }.get(config.optimizer)
+
+    if optimizer is None:
         raise ValueError("Invalid optimizer")
 
-    criterion = nn.CrossEntropyLoss()
+    optimizer = optimizer(model.parameters(), lr=config.lr_max)
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)  # For regularization alpha=0.1
 
-    # Train model
+    # Training loop with early stopping
     print("Model ready to train...")
+    best_val_loss = float("inf")
+    patience_counter = 0
+
     for epoch in range(config.num_epochs):
         model.train()
         train_loss = 0.0
         correct = 0
         total = 0
 
-        for inputs, labels in train_loader:
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{config.num_epochs}")
+        for inputs, labels in pbar:
+            inputs = inputs.to(device)
+            labels = labels.to(device).long()
             optimizer.zero_grad()
             outputs = model(inputs)
             loss = criterion(outputs, labels)
@@ -119,8 +146,10 @@ def main(seed: int = 42):
             total += labels.size(0)
             correct += predicted.eq(labels).sum().item()
 
+            pbar.set_postfix(loss=loss.item(), accuracy=100 * correct / total)
+
         print(
-            f"Epoch {epoch+1}/{config.num_epochs}, Loss: {train_loss / len(train_loader):.4f}, Accuracy: {100 * correct / total:.2f}%"
+            f"Epoch {epoch + 1}/{config.num_epochs}, Loss: {train_loss / len(train_loader):.4f}, Accuracy: {100 * correct / total:.2f}%"
         )
 
         if config.val == 1:
@@ -129,7 +158,9 @@ def main(seed: int = 42):
             val_correct = 0
             val_total = 0
             with torch.no_grad():
-                for inputs, labels in val_loader:
+                for inputs, labels in tqdm(val_loader, desc="Validation"):
+                    inputs = inputs.to(device)
+                    labels = labels.to(device).long()
                     outputs = model(inputs)
                     loss = criterion(outputs, labels)
 
@@ -138,13 +169,32 @@ def main(seed: int = 42):
                     val_total += labels.size(0)
                     val_correct += predicted.eq(labels).sum().item()
 
+            val_loss /= len(val_loader)
             print(
-                f"Validation Loss: {val_loss / len(val_loader):.4f}, Accuracy: {100 * val_correct / val_total:.2f}%"
+                f"Validation Loss: {val_loss:.4f}, Accuracy: {100 * val_correct / val_total:.2f}%"
             )
 
-    # Save model
-    torch.save(model.state_dict(), config.out_dir + "/SwinT.pth")
-    print("Model saved.")
+            # Early stopping logic
+            if config.early_stopping:
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    patience_counter = 0
+                    # Save the best model
+                    torch.save(model.state_dict(), config.out_dir + "/SwinT_best.pth")
+                    print("Best model saved.")
+                else:
+                    patience_counter += 1
+                    if patience_counter >= config.patience:
+                        print("Early stopping triggered.")
+                        break
+        else:
+            # If no validation set is provided, no early stopping based on validation
+            torch.save(model.state_dict(), config.out_dir + "/SwinT.pth")
+
+    # If training completes without early stopping or config.val = 0, save final model
+    if not config.val or patience_counter < config.patience:
+        torch.save(model.state_dict(), config.out_dir + "/SwinT.pth")
+        print("Final model saved.")
 
 
 if __name__ == "__main__":
