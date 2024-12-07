@@ -17,14 +17,14 @@ This work was supervised by Prof. Mayssa Dabaghi, Prof. Sirine Taleb, and Prof. 
 ######
 The repository contains the code for the following tasks:
 1. Data Preprocessing 
-2. Model Training with Transfer Learning
-3. Model Optimization (Hyperparameter Tuning)
-4. Model Prediction and Evaluation
-5. Model Interpretation (LIME, SHAP)
-6. Model Deployment
-7. Gradio Interface
-8. Dockerization
-9. Automated Data Collection
+2. Model Training with Transfer Learning.
+3. Model Optimization. (Hyperparameter Tuning)
+4. Model Prediction and Evaluation.
+5. Model Interpretation. (LIME, SHAP)
+6. Model Deployment. (Huggingface Model Space)
+7. Gradio Interface.
+8. Dockerization.
+9. Automated Data Collection.
 
 Refer to the [Todo](#todo) section for the tasks that are in progress or planned to be implemented in the future.
 ######
@@ -34,11 +34,11 @@ The model is trained to predict the construction periods that are divided into t
 
 | Construction Period | Architectural Theme |
 |---------------------|---------------------|
-| Pre-1935            | Old Beirut          |
-| 1935-1955           | Early Modern        |
-| 1956-1971           | Late Modern         |
-| 1972-1990           | Post-Modern         |
-| Post-1990           | Contemporary        |
+| Pre-1935            | Late Ottoman & Colonial Eclectic          |
+| 1935-1955           | Early Modernist        |
+| 1956-1971           | High Modernist       |
+| 1972-1990           | Late Modernist        |
+| Post-1990           | Contemporary       |
 
 ## Model Architecture
 The model architecture
@@ -64,31 +64,46 @@ Remember to replace the path to the repository with the correct path on your mac
 ## Classifier Gradio Interface
 To run the classifier UI feature, use the following command:
 ```bash
-python -m Classification_UI
+python -m src.main
 ```
 ![image](UI_example.png)
 
-## Todo:
-The following tasks are planned to be implemented in the future:
+## Huggingface Model Space Deployment
+The trained model is deployed on the Huggingface Model Space. You can access the model using the following link:
+[BeirutCP_Classifier](davidwardan/Beirut_CP)
 
-- [x] Data Preprocessing
-- [x] Model Training with Transfer Learning
-- [ ] Model Optimization (Bayesian Optimization)
-- [x] Model Prediction and Evaluation
-- [x] Model Interpretation (LIME)
-- [x] Model Interpretation (SHAP)
-- [x] Gradio Interface
-- [ ] Tensorflow to Pytorch Conversion (most important)
-- [ ] Ability to download model weights
-- [ ] Ability to access collected data
-- [ ] Dockerization
-- [ ] Documentation
-- [ ] Automated Data Collection from Google Street View API
-- [ ] Ability to recognize if the image does not contain a building
-- [ ] Ability to provide additional information about the building
-- [ ] Ability to recognize if the building is highly damaged
-- [ ] Ability to recognize if the building has been renovated
-- [ ] Ability to recognize if the architecture is not typical for Beirut
+## Dockerization
+To run the project using Docker, first build the Docker image using the following command:
+```bash
+docker build -t beirutcp_classifier .
+```
+Then, run the Docker container using the following command:
+```bash
+docker run -p 7860:7860 beirutcp_classifier
+```
+
+## Todo:
+Planned future tasks:
+
+- [x] Data Preprocessing.
+- [x] Model Training with Transfer Learning.
+- [ ] Model Optimization. (Bayesian Optimization)
+- [x] Model Prediction and Evaluation.
+- [x] Model Interpretation. (LIME)
+- [x] Model Interpretation. (SHAP)
+- [x] Gradio Interface.
+- [x] Huggingface Model Space Deployment.
+- [x] Tensorflow to Pytorch Conversion.
+- [ ] Ability to download model weights.
+- [ ] Ability to access collected data.
+- [x] Dockerization.
+- [ ] Documentation.
+- [ ] Automated Data Collection from Google Street View API.
+- [ ] Ability to recognize if the image does not contain a building.
+- [ ] Ability to provide additional information about the building.
+- [ ] Ability to recognize if the building is highly damaged.
+- [ ] Ability to recognize if the building has been renovated.
+- [ ] Ability to recognize if the architecture is not typical for Beirut.
 
 ## License
 This project is licensed under the MIT License—see the `LICENSE` file for details.
