@@ -29,15 +29,13 @@ class metrics:
 
         Args:
             output (np.ndarray): Model predictions (probabilities or logits).
-            true (np.ndarray): Ground truth labels (one-hot or categorical).
+            true (np.ndarray): Ground truth labels (integer encoded).
             normalized (bool): If True, normalize the confusion matrix.
 
         Returns:
             np.ndarray: Confusion matrix.
         """
-        preds = np.argmax(output, axis=1)
-        labels = np.argmax(true, axis=1)
-        return confusion_matrix(labels, preds, normalize="true" if normalized else None)
+        return confusion_matrix(true, output, normalize="true" if normalized else None)
 
     @staticmethod
     def get_mscore(output: np.ndarray, true: np.ndarray) -> float:

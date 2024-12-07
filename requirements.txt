@@ -2,7 +2,7 @@ numpy~=1.26.4
 pandas~=1.4.1
 scikit-learn~=1.5.1
 matplotlib~=3.5.1
-gradio~=4.29.0
+gradio~=4.44.1
 opencv-python
 lime
 shap

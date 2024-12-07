@@ -129,7 +129,7 @@ def main():
 
     cm = metrics.get_confusion_matrix(y_true, y_pred)
     disp = ConfusionMatrixDisplay(
-        confusion_matrix=cm, display_labels=config.class_names
+        confusion_matrix=cm, display_labels=config.labels
     )
     disp.plot(cmap=plt.cm.Blues)
     plt.show()

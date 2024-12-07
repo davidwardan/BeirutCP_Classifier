@@ -13,6 +13,7 @@ from lime import lime_image
 from skimage.segmentation import mark_boundaries
 import shap
 from typing import List, Tuple
+import torch
 
 
 class Utils:
@@ -30,9 +31,17 @@ class Utils:
         :return: Marked boundaries image showing explanation.
         """
         explainer = lime_image.LimeImageExplainer()
+        
+        def predict_fn(images):
+            model.eval()
+            with torch.no_grad():
+                images = torch.tensor(images).permute(0, 3, 1, 2).float()
+                outputs = model(images)
+                return outputs.numpy()
+        
         explanation = explainer.explain_instance(
             image.astype("double"),
-            model.predict,
+            predict_fn,
             top_labels=3,
             hide_color=0,
             num_samples=num_samples,

@@ -13,8 +13,9 @@ gen
 /dataset/
 /.cadence/
 /read_data.py
-/test.py
-/train.py
+/test_model.py
+/train_model.py
 /UI_example.png
 /README.md
 /cover_img.png
+/weights/SwinT
