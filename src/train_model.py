@@ -122,6 +122,7 @@ def main(seed: int = 42):
         raise ValueError("Invalid optimizer")
 
     optimizer = optimizer(model.parameters(), lr=config.lr_max)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.num_epochs, eta_min=config.lr_min)
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)  # For regularization alpha=0.1
 
     # Training loop with early stopping
@@ -149,6 +150,8 @@ def main(seed: int = 42):
             _, predicted = outputs.max(1)
             total += labels.size(0)
             correct += predicted.eq(labels).sum().item()
+
+        scheduler.step() # Update learning rate
 
         if config.val == 1:
             model.eval()
