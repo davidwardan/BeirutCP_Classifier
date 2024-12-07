@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torchvision.models as models
 
+
 class SwinTClassifier(nn.Module):
     def __init__(self, num_classes, transfer_learning=True):
         super(SwinTClassifier, self).__init__()

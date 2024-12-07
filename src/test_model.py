@@ -126,11 +126,8 @@ def main():
         f"Test Loss: {test_loss / len(test_loader):.4f}, Accuracy: {100 * correct / total:.2f}%"
     )
 
-
     cm = metrics.get_confusion_matrix(y_true, y_pred)
-    disp = ConfusionMatrixDisplay(
-        confusion_matrix=cm, display_labels=config.labels
-    )
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=config.labels)
     disp.plot(cmap=plt.cm.Blues)
     plt.show()
 

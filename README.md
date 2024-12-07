@@ -1,3 +1,9 @@
+---
+title: test
+app_file: src/main.py
+sdk: gradio
+sdk_version: 4.44.1
+---
 # Beirut Construction Period Classifier 
 ![image](cover_img.png)
 
@@ -66,11 +72,14 @@ To run the classifier UI feature, use the following command:
 ```bash
 python -m src.main
 ```
-![image](UI_example.png)
+<p float="left">
+    <img src="Example_UI.png" alt="Example UI" width="500"/> 
+    <img src="Example_UI_LIME.png" alt="Example UI LIME" width="500"/>
+</p>
 
 ## Huggingface Model Space Deployment
 The trained model is deployed on the Huggingface Model Space. You can access the model using the following link:
-[BeirutCP_Classifier](davidwardan/Beirut_CP)
+[BeirutCP_Classifier](https://huggingface.co/spaces/davidwardan/Beirut_CP)
 
 ## Dockerization
 To run the project using Docker, first build the Docker image using the following command:

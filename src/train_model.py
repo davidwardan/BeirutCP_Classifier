@@ -122,7 +122,9 @@ def main(seed: int = 42):
         raise ValueError("Invalid optimizer")
 
     optimizer = optimizer(model.parameters(), lr=config.lr_max)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.num_epochs, eta_min=config.lr_min)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=config.num_epochs, eta_min=config.lr_min
+    )
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)  # For regularization alpha=0.1
 
     # Training loop with early stopping
@@ -151,7 +153,7 @@ def main(seed: int = 42):
             total += labels.size(0)
             correct += predicted.eq(labels).sum().item()
 
-        scheduler.step() # Update learning rate
+        scheduler.step()  # Update learning rate
 
         if config.val == 1:
             model.eval()
@@ -188,7 +190,10 @@ def main(seed: int = 42):
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     patience_counter = 0
-                    torch.save(model.state_dict(), os.path.join(config.out_dir, "SwinT_best.pth"))
+                    torch.save(
+                        model.state_dict(),
+                        os.path.join(config.out_dir, "SwinT_best.pth"),
+                    )
                     print("Best model saved.")
                 else:
                     patience_counter += 1
@@ -206,6 +211,7 @@ def main(seed: int = 42):
     # If no validation set is provided, no early stopping based on validation
     if config.val == 0:
         torch.save(model.state_dict(), os.path.join(config.out_dir, "SwinT.pth"))
+
 
 if __name__ == "__main__":
     main()
