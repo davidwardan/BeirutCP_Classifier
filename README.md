@@ -1,9 +1,3 @@
----
-title: test
-app_file: src/main.py
-sdk: gradio
-sdk_version: 4.44.1
----
 # Beirut Construction Period Classifier 
 ![image](cover_img.png)
 
