@@ -20,9 +20,9 @@ class Config:
 
     transfer_learning = 1  # 1 if transfer learning is used, 0 otherwise
 
-    batch_size = 128 # higher batch size is faster but requires more memory
+    batch_size = 64 # higher batch size is faster but requires more memory
 
-    num_epochs = 20 # max number of epochs 
+    num_epochs = 100 # max number of epochs 
 
     loss = 'crossentropy'
 

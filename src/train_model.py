@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -48,6 +49,9 @@ def main(seed: int = 42):
 
     # Define configuration
     config = Config()
+
+    # Ensure the output directory exists
+    os.makedirs(config.out_dir, exist_ok=True)
 
     # Load and preprocess data
     x_train = Processing.load_data(config.in_dir + "/train/x_train.npy")
@@ -125,14 +129,14 @@ def main(seed: int = 42):
     best_val_loss = float("inf")
     patience_counter = 0
 
-    for epoch in range(config.num_epochs):
+    pbar = tqdm(range(config.num_epochs))
+    for epoch in pbar:
         model.train()
         train_loss = 0.0
         correct = 0
         total = 0
 
-        pbar = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{config.num_epochs}")
-        for inputs, labels in pbar:
+        for inputs, labels in train_loader:
             inputs = inputs.to(device)
             labels = labels.to(device).long()
             optimizer.zero_grad()
@@ -146,19 +150,13 @@ def main(seed: int = 42):
             total += labels.size(0)
             correct += predicted.eq(labels).sum().item()
 
-            pbar.set_postfix(loss=loss.item(), accuracy=100 * correct / total)
-
-        print(
-            f"Epoch {epoch + 1}/{config.num_epochs}, Loss: {train_loss / len(train_loader):.4f}, Accuracy: {100 * correct / total:.2f}%"
-        )
-
         if config.val == 1:
             model.eval()
             val_loss = 0.0
             val_correct = 0
             val_total = 0
             with torch.no_grad():
-                for inputs, labels in tqdm(val_loader, desc="Validation"):
+                for inputs, labels in val_loader:
                     inputs = inputs.to(device)
                     labels = labels.to(device).long()
                     outputs = model(inputs)
@@ -170,32 +168,41 @@ def main(seed: int = 42):
                     val_correct += predicted.eq(labels).sum().item()
 
             val_loss /= len(val_loader)
-            print(
-                f"Validation Loss: {val_loss:.4f}, Accuracy: {100 * val_correct / val_total:.2f}%"
+            val_accuracy = 100.0 * val_correct / val_total
+
+            # update progress bar
+            pbar.set_postfix(
+                {
+                    "Train Loss": train_loss / len(train_loader),
+                    "Train Acc": 100.0 * correct / total,
+                    "Val Loss": val_loss,
+                    "Val Acc": val_accuracy,
+                }
             )
 
             # Early stopping logic
-            if config.early_stopping:
+            if config.early_stop_patience is not None:
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     patience_counter = 0
-                    # Save the best model
-                    torch.save(model.state_dict(), config.out_dir + "/SwinT_best.pth")
+                    torch.save(model.state_dict(), os.path.join(config.out_dir, "SwinT_best.pth"))
                     print("Best model saved.")
                 else:
                     patience_counter += 1
-                    if patience_counter >= config.patience:
+                    if patience_counter >= config.early_stop_patience:
                         print("Early stopping triggered.")
                         break
         else:
-            # If no validation set is provided, no early stopping based on validation
-            torch.save(model.state_dict(), config.out_dir + "/SwinT.pth")
+            pbar.set_postfix(
+                {
+                    "Train Loss": train_loss / len(train_loader),
+                    "Train Acc": 100.0 * correct / total,
+                }
+            )
 
-    # If training completes without early stopping or config.val = 0, save final model
-    if not config.val or patience_counter < config.patience:
-        torch.save(model.state_dict(), config.out_dir + "/SwinT.pth")
-        print("Final model saved.")
-
+    # If no validation set is provided, no early stopping based on validation
+    if config.val == 0:
+        torch.save(model.state_dict(), os.path.join(config.out_dir, "SwinT.pth"))
 
 if __name__ == "__main__":
     main()
