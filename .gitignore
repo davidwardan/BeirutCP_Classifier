@@ -30,3 +30,4 @@ data/val
 
 __pycache__
 nohup.out
+*.pth

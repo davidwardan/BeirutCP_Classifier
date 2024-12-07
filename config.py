@@ -28,7 +28,7 @@ class Config:
 
     val = 1  # 1 if validation input is available, 0 otherwise
 
-    saved_model_dir = ""  # leave empty to defaul model
+    saved_model_dir = "weights/20241206-225836"  # leave empty to defaul model
 
     in_dir = "input/"
 

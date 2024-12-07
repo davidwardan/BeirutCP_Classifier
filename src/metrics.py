@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.metrics import confusion_matrix
 
 
-class Metrics:
+class metrics:
 
     @staticmethod
     def get_accuracy(output: np.ndarray, true: np.ndarray) -> float:

@@ -88,7 +88,7 @@ def main():
     ).to(device)
 
     # Load model weights
-    model_path = os.path.join(config.out_dir, "SwinT.pth")
+    model_path = os.path.join(config.saved_model_dir, "SwinT.pth")
     if not os.path.exists(model_path):
         logger.error(f"Model file not found at {model_path}.")
         return
@@ -126,14 +126,13 @@ def main():
         f"Test Loss: {test_loss / len(test_loader):.4f}, Accuracy: {100 * correct / total:.2f}%"
     )
 
-    # Optionally, plot confusion matrix
-    if config.plot_confusion_matrix:
-        cm = metrics.confusion_matrix(y_true, y_pred)
-        disp = ConfusionMatrixDisplay(
-            confusion_matrix=cm, display_labels=config.class_names
-        )
-        disp.plot(cmap=plt.cm.Blues)
-        plt.show()
+
+    cm = metrics.get_confusion_matrix(y_true, y_pred)
+    disp = ConfusionMatrixDisplay(
+        confusion_matrix=cm, display_labels=config.class_names
+    )
+    disp.plot(cmap=plt.cm.Blues)
+    plt.show()
 
 
 if __name__ == "__main__":
