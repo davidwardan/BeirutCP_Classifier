@@ -1,45 +1,20 @@
 import os
+import pickle
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torchvision import transforms
 from torchvision.transforms import Normalize
 import numpy as np
 import random
-
-from src.utils import Processing
-from config import Config
+import pandas as pd
 from tqdm import tqdm
-from torch.utils.data import Dataset
-from torchvision import transforms
-from PIL import Image
+
+from config import Config
 from src.swint_model import SwinTClassifier
-
-
-# Custom dataset class
-class NumpyDataset(Dataset):
-    def __init__(self, x, y, transform=None):
-        self.x = x
-        self.y = y
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.x)
-
-    def __getitem__(self, idx):
-        image = self.x[idx]
-        label = self.y[idx]
-
-        # Ensure label is an integer
-        label = int(label)
-
-        # Convert image to PIL and apply transformations
-        image = (image * 255).astype(np.uint8)
-        image = Image.fromarray(image)
-        if self.transform:
-            image = self.transform(image)
-
-        return image, label
+from src.data_loader import ImageDataset
+from src.data_preprocessor import DataPreprocessor
 
 
 def main(seed: int = 42):
@@ -47,23 +22,17 @@ def main(seed: int = 42):
     random.seed(seed)
     torch.manual_seed(seed)
 
-    # Define configuration
+    # Load config
     config = Config()
-
-    # Ensure the output directory exists
     os.makedirs(config.out_dir, exist_ok=True)
 
-    # Load and preprocess data
-    x_train = Processing.load_data(config.in_dir + "/train/x_train.npy")
-    y_train = Processing.load_data(config.in_dir + "/train/y_train.npy")
+    # Load pickled dataset (with embedded images)
+    with open(config.in_dir + "/train_dataset2.pkl", "rb") as f:
+        train_data_dict = pickle.load(f)
 
-    x_train = Processing.norm_image(x_train)
-
-    # Ensure labels are integers (required for CrossEntropyLoss)
-    if y_train.ndim > 1:
-        y_train = np.argmax(y_train, axis=1)
-
-    print(f"x_train shape: {x_train.shape} - y_train shape: {y_train.shape}")
+    if config.val:
+        with open(config.in_dir + "/val_dataset2.pkl", "rb") as f:
+            val_data_dict = pickle.load(f)
 
     # Define transforms
     train_transform = transforms.Compose(
@@ -86,24 +55,26 @@ def main(seed: int = 42):
         ]
     )
 
-    if config.val == 1:
-        x_val = Processing.load_data(config.in_dir + "/val/x_val.npy")
-        y_val = Processing.load_data(config.in_dir + "/val/y_val.npy")
+    # Create and fit preprocessor using raw CSV (required for scaling/tabular prep)
+    df = pd.read_csv("data/final_data.csv")
+    df_train = df[
+        (df["split"] == "train") & (df["in_dataset_2"] == True) & df["label"].notna()
+    ]
 
-        if y_val.ndim > 1:
-            y_val = np.argmax(y_val, axis=1)
+    categorical_features = ["socio_eco"]
+    continuous_features = ["floors_no"]
 
-        print(f"x_val shape: {x_val.shape} - y_val shape: {y_val.shape}")
+    preprocessor = DataPreprocessor(categorical_features, continuous_features)
+    preprocessor.fit(df_train)
+    preprocessor.save_constants("output/norm_constants.json")
 
-    # Create datasets and loaders
-    train_dataset = NumpyDataset(x_train, y_train, transform=train_transform)
+    # Create PyTorch datasets/loaders
+    train_dataset = ImageDataset(train_data_dict, transform=train_transform)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
 
-    if config.val == 1:
-        val_dataset = NumpyDataset(x_val, y_val, transform=val_transform)
-        val_loader = DataLoader(
-            val_dataset, batch_size=config.batch_size, shuffle=False
-        )
+    if config.val:
+        val_dataset = ImageDataset(val_data_dict, transform=val_transform)
+        val_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False)
 
     # Initialize model
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -112,22 +83,16 @@ def main(seed: int = 42):
         transfer_learning=(config.transfer_learning == 1),
     ).to(device)
 
-    # Define optimizer and loss function
-    optimizer = {
-        "adam": optim.Adam,
-        "sgd": optim.SGD,
-    }.get(config.optimizer)
-
-    if optimizer is None:
+    optimizer_cls = {"adam": optim.Adam, "sgd": optim.SGD}.get(config.optimizer)
+    if optimizer_cls is None:
         raise ValueError("Invalid optimizer")
 
-    optimizer = optimizer(model.parameters(), lr=config.lr_max)
+    optimizer = optimizer_cls(model.parameters(), lr=config.lr_max)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=config.num_epochs, eta_min=config.lr_min
     )
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)  # For regularization alpha=0.1
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
-    # Training loop with early stopping
     print("Model ready to train...")
     best_val_loss = float("inf")
     patience_counter = 0
@@ -140,8 +105,7 @@ def main(seed: int = 42):
         total = 0
 
         for inputs, labels in train_loader:
-            inputs = inputs.to(device)
-            labels = labels.to(device).long()
+            inputs, labels = inputs.to(device), labels.to(device).long()
             optimizer.zero_grad()
             outputs = model(inputs)
             loss = criterion(outputs, labels)
@@ -153,39 +117,36 @@ def main(seed: int = 42):
             total += labels.size(0)
             correct += predicted.eq(labels).sum().item()
 
-        scheduler.step()  # Update learning rate
+        scheduler.step()
 
-        if config.val == 1:
+        # Validation
+        if config.val:
             model.eval()
             val_loss = 0.0
             val_correct = 0
             val_total = 0
             with torch.no_grad():
                 for inputs, labels in val_loader:
-                    inputs = inputs.to(device)
-                    labels = labels.to(device).long()
+                    inputs, labels = inputs.to(device), labels.to(device).long()
                     outputs = model(inputs)
                     loss = criterion(outputs, labels)
-
                     val_loss += loss.item()
                     _, predicted = outputs.max(1)
                     val_total += labels.size(0)
                     val_correct += predicted.eq(labels).sum().item()
 
             val_loss /= len(val_loader)
-            val_accuracy = 100.0 * val_correct / val_total
+            val_acc = 100.0 * val_correct / val_total
 
-            # update progress bar
             pbar.set_postfix(
                 {
                     "Train Loss": train_loss / len(train_loader),
                     "Train Acc": 100.0 * correct / total,
                     "Val Loss": val_loss,
-                    "Val Acc": val_accuracy,
+                    "Val Acc": val_acc,
                 }
             )
 
-            # Early stopping logic
             if config.early_stop_patience is not None:
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
@@ -208,8 +169,7 @@ def main(seed: int = 42):
                 }
             )
 
-    # If no validation set is provided, no early stopping based on validation
-    if config.val == 0:
+    if not config.val:
         torch.save(model.state_dict(), os.path.join(config.out_dir, "SwinT.pth"))
 
 

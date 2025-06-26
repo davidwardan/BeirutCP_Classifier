@@ -41,31 +41,25 @@ def main(top_classes=3):
     logger.info("Model loaded successfully.")
 
     # Define image classification function
-    def classify_image(inp, enable_lime):
+    def classify_image(inp, enable_gradcam):
         # Convert PIL image to numpy array
-        inp = np.array(inp)
-        inp = cv2.resize(inp, (config.image_size, config.image_size))
-        inp = processing.norm_image(inp)
-        inp = (
-            torch.tensor(inp.transpose(2, 0, 1), dtype=torch.float32)
+        inp_np = np.array(inp)
+        inp_resized = cv2.resize(inp_np, (config.image_size, config.image_size))
+        inp_processed = processing.norm_image(inp_resized)
+        inp_tensor = (
+            torch.tensor(inp_processed.transpose(2, 0, 1), dtype=torch.float32)
             .unsqueeze(0)
             .to(device)
         )
 
         with torch.no_grad():
-            prediction = model(inp).softmax(dim=1).cpu().numpy().flatten()
+            prediction = model(inp_tensor).softmax(dim=1).cpu().numpy().flatten()
         confidences = {
             config.labels[i]: float(prediction[i]) for i in range(len(config.labels))
         }
 
-        if enable_lime:
-            # Ensure that lime_explain_instance is implemented in utils
-            explained_image = utils.lime_explain_instance(
-                model,
-                inp.squeeze(0).cpu().numpy().transpose(1, 2, 0),
-                num_samples=500,
-                num_features=5,
-            )
+        if enable_gradcam:
+            explained_image = utils.gradcam_explain_instance(model, inp, device)
             return confidences, explained_image
         else:
             return confidences, None
@@ -73,15 +67,15 @@ def main(top_classes=3):
     title = "Construction Period Classifier"
     description = (
         "Upload an image to classify its construction period. "
-        "Use the checkbox to enable LIME explanation."
+        "Use the checkbox to enable Grad-CAM explanation."
     )
 
-    # Create the interface with an additional checkbox for LIME
+    # Create the interface with an additional checkbox for Grad-CAM
     demo = gr.Interface(
         fn=classify_image,
         inputs=[
             gr.Image(type="pil", label="Input Image"),
-            gr.Checkbox(label="Enable LIME Explanation", value=False),
+            gr.Checkbox(label="Enable Grad-CAM Explanation", value=False),
         ],
         outputs=[
             gr.Label(label="Top Classes", num_top_classes=top_classes),

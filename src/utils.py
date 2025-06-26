@@ -14,6 +14,10 @@ from skimage.segmentation import mark_boundaries
 import shap
 from typing import List, Tuple
 import torch
+from pytorch_grad_cam import GradCAM
+from pytorch_grad_cam.utils.image import show_cam_on_image, preprocess_image
+from torchvision.transforms import ToTensor, Normalize, Resize, Compose
+from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 
 
 class Utils:
@@ -84,6 +88,58 @@ class Utils:
         img = Image.open(buf)
         buf.close()
         return np.array(img)
+
+    def gradcam_explain_instance(model, image: np.ndarray, device: torch.device, target_class: int = None):
+        """
+        Generate a Grad-CAM explanation for a given image.
+        
+        :param model: PyTorch model to explain.
+        :param image: Input image as a NumPy array (H x W x C) in RGB format.
+        :param device: Torch device (CPU or GPU).
+        :param target_class: The class index to visualize. If None, Grad-CAM will use the top predicted class.
+        :return: Grad-CAM explanation as a NumPy image (H x W x 3).
+        """
+        model.eval()
+
+        # Ensure model and image are on the correct device
+        model = model.to(device)
+
+        # Preprocessing pipeline
+        transform = Compose([
+            # ToPILImage(),
+            Resize((224, 224)),
+            ToTensor(),
+            Normalize(mean=[0.485, 0.456, 0.406],
+                      std=[0.229, 0.224, 0.225]),
+        ])
+
+        # Convert the NumPy array to a PIL image and then to a tensor
+        input_tensor = transform(image).unsqueeze(0).to(device)
+
+        # Select a target layer for Grad-CAM
+        target_layer = model.layers[-1].blocks[-1].norm2
+    
+        # If a target class is specified, use ClassifierOutputTarget
+        # Otherwise, rely on the model to pick the top predicted class (target_category=None).
+        if target_class is not None:
+            targets = [ClassifierOutputTarget(target_class)]
+        else:
+            targets = None
+
+        # Initialize Grad-CAM
+        grad_cam = GradCAM(model=model, target_layer=target_layer, use_cuda=(device.type == 'cuda'))
+
+        # Compute Grad-CAM
+        grayscale_cam = grad_cam(input_tensor=input_tensor, targets=targets)
+        grayscale_cam = grayscale_cam[0, :]  # Extract CAM for the first (only) image
+
+        # Convert original image to float32 and scale to [0,1]
+        rgb_img = np.float32(image) / 255.0
+
+        # Overlay heatmap on the original image
+        cam_image = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
+
+        return cam_image
 
 
 class Processing:

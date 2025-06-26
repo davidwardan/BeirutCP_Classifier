@@ -8,6 +8,7 @@ gen
 /input
 /output
 /dataset
+/data/images
 
 # Weight files
 /saved_models
