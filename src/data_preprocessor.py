@@ -66,5 +66,26 @@ class DataPreprocessor:
 
         with open(filepath, "r") as f:
             d = json.load(f)
+
         self.norm_constants = d["norm_constants"]
         self.one_hot_columns = d["one_hot_columns"]
+
+        # Reconstruct StandardScaler with loaded means and stds
+        means = []
+        vars_ = []
+        for col in self.continuous_features:
+            means.append(self.norm_constants[col]["mean"])
+            vars_.append(self.norm_constants[col]["std"] ** 2)
+
+        self.scaler.mean_ = np.array(means)
+        self.scaler.var_ = np.array(vars_)
+        self.scaler.scale_ = np.sqrt(self.scaler.var_)
+        self.scaler.n_features_in_ = len(self.continuous_features)
+        self.scaler.feature_names_in_ = np.array(self.continuous_features)
+
+        # Reconstruct OneHotEncoder dummy fit
+        dummy_df = pd.DataFrame(
+            [[val] for val in self.encoder.categories[0]],
+            columns=self.categorical_features,
+        )
+        self.encoder.fit(dummy_df)  # this fits only using known categories

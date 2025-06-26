@@ -2,8 +2,10 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from PIL import Image
 import numpy as np
+from config import Config
 
 load_image_as_array_failed_count = 0
+
 
 def load_image_as_array(path, size=(224, 224)):
     global load_image_as_array_failed_count
@@ -12,7 +14,7 @@ def load_image_as_array(path, size=(224, 224)):
 
     # WEB_RWFDWyQ9oKqWS6GUxdBETz_augment if path has augment suffix
     if path.endswith("_augment.png"):
-        path = path[:-8] + ".png"
+        path = path[:-12] + ".png"
         augmnet = True
     try:
         if augmnet:
@@ -25,7 +27,7 @@ def load_image_as_array(path, size=(224, 224)):
         print(f"Error loading image {path}: {e}")
         load_image_as_array_failed_count += 1
         return np.zeros((size[0], size[1], 3), dtype=np.uint8)
-    return np.array(image) / 255.0
+    return np.array(image)
 
 
 def main(data_csv, dataset_type):
@@ -45,8 +47,10 @@ def main(data_csv, dataset_type):
     df_filtered = df_filtered[df_filtered["label"].notna()]
 
     # Encode labels
-    label_encoder = LabelEncoder()
-    df_filtered["label"] = label_encoder.fit_transform(df_filtered["label"])
+    config = Config()
+    custom_order = config.labels
+    label_map = {label: idx for idx, label in enumerate(custom_order)}
+    df_filtered["label"] = df_filtered["label"].map(label_map)
 
     # split into dataframes for train, val and test
     splits = [
@@ -71,7 +75,9 @@ def main(data_csv, dataset_type):
                 }
             )
         split_name = split["split"].iloc[0]
-        print(f"[{split_name}] Failed to load {load_image_as_array_failed_count} images.")
+        print(
+            f"[{split_name}] Failed to load {load_image_as_array_failed_count} images."
+        )
 
         # pickle the data
         output_file = f"output/{split_name}_{dataset_type}.pkl"

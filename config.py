@@ -10,13 +10,13 @@ class Config:
 
     input_shape = [image_size, image_size, 3]
 
-    lr_max = 0.0001  # maximum learning rate
+    lr_max = 5e-5  # maximum learning rate
 
-    lr_min = 0.000001  # minimum learning rate, note you can set lr_min = lr_max to use constant learning rate
+    lr_min = 1e-6  # minimum learning rate, note you can set lr_min = lr_max to use constant learning rate
 
     optimizer = 'adam'  # 'adam' or 'sgd'
 
-    early_stop_patience = 5
+    early_stop_patience = 10
 
     transfer_learning = 1  # 1 if transfer learning is used, 0 otherwise
 

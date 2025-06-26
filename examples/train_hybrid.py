@@ -6,7 +6,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.transforms import Normalize
-import numpy as np
+from torch.optim.lr_scheduler import SequentialLR, LinearLR, CosineAnnealingLR
+
 import random
 import pandas as pd
 from tqdm import tqdm
@@ -37,11 +38,11 @@ def main(seed: int = 42):
     # Define transforms
     train_transform = transforms.Compose(
         [
-            transforms.RandomResizedCrop(224),
-            transforms.RandomHorizontalFlip(),
+            # transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
+            # transforms.RandomHorizontalFlip(),
             transforms.RandomRotation(15),
             transforms.ColorJitter(
-                brightness=0.4, contrast=0.4, saturation=0.4, hue=0.2
+                brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05
             ),
             transforms.ToTensor(),
             Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -97,8 +98,18 @@ def main(seed: int = 42):
         raise ValueError("Invalid optimizer")
 
     optimizer = optimizer_cls(model.parameters(), lr=config.lr_max)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=config.num_epochs, eta_min=config.lr_min
+
+    warmup_epochs = 5
+    warmup_scheduler = LinearLR(optimizer, start_factor=0.1, total_iters=warmup_epochs)
+
+    main_scheduler = CosineAnnealingLR(
+        optimizer, T_max=config.num_epochs - warmup_epochs, eta_min=config.lr_min
+    )
+
+    scheduler = SequentialLR(
+        optimizer,
+        schedulers=[warmup_scheduler, main_scheduler],
+        milestones=[warmup_epochs],
     )
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
@@ -119,10 +130,6 @@ def main(seed: int = 42):
                 tabular.to(device),
                 labels.to(device).long(),
             )
-            # print one of the inputs, tabular, labels
-            print(inputs[0], tabular[0], labels[0])
-
-            
             optimizer.zero_grad()
             outputs = model(inputs, tabular)
             loss = criterion(outputs, labels)
@@ -149,9 +156,7 @@ def main(seed: int = 42):
                         tabular.to(device),
                         labels.to(device).long(),
                     )
-                    outputs = (
-                        model(inputs, tabular) if config.use_tabular else model(inputs)
-                    )
+                    outputs = model(inputs, tabular)
                     loss = criterion(outputs, labels)
                     val_loss += loss.item()
                     _, predicted = outputs.max(1)
@@ -176,7 +181,7 @@ def main(seed: int = 42):
                     patience_counter = 0
                     torch.save(
                         model.state_dict(),
-                        os.path.join(config.out_dir, "SwinT_best.pth"),
+                        os.path.join(config.out_dir, "Hybrid_best.pth"),
                     )
                     print("Best model saved.")
                 else:
@@ -193,7 +198,7 @@ def main(seed: int = 42):
             )
 
     if not config.val:
-        torch.save(model.state_dict(), os.path.join(config.out_dir, "SwinT.pth"))
+        torch.save(model.state_dict(), os.path.join(config.out_dir, "Hybrid.pth"))
 
 
 if __name__ == "__main__":

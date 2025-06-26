@@ -2,47 +2,22 @@ import os
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
-from sklearn.metrics import ConfusionMatrixDisplay
+from sklearn.metrics import ConfusionMatrixDisplay, classification_report
 from tqdm import tqdm
-import numpy as np
-from src.utils import Processing
 from config import Config
 from src.metrics import metrics
+
 import logging
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
+import pickle
+from src.data_loader import ImageDataset
 from torchvision import transforms
-from PIL import Image
 from src.swint_model import SwinTClassifier
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-
-class NumpyDataset(Dataset):
-    def __init__(self, x, y, transform=None):
-        self.x = x
-        self.y = y
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.x)
-
-    def __getitem__(self, idx):
-        image = self.x[idx]
-        label = self.y[idx]
-
-        # Ensure label is an integer
-        label = int(label)
-
-        # Convert image to PIL and apply transformations
-        image = (image * 255).astype(np.uint8)
-        image = Image.fromarray(image)
-        if self.transform:
-            image = self.transform(image)
-
-        return image, label
 
 
 def main():
@@ -52,23 +27,16 @@ def main():
     # Set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Load test data
-    logger.info("Loading test data...")
+    # Load test data dictionary for ImageDataset
+    logger.info("Loading test data dictionary...")
     try:
-        x_test = Processing.load_data(config.in_dir + "/test/x_test.npy")
-        y_test = Processing.load_data(config.in_dir + "/test/y_test.npy")
-        x_test = Processing.norm_image(x_test)
-
-        # If labels are one-hot encoded, convert them to integer indices
-        if y_test.ndim > 1:
-            y_test = np.argmax(y_test, axis=1)
-        y_test = y_test.astype(np.int64)
-
+        with open(os.path.join(config.in_dir, "test_dataset2.pkl"), "rb") as f:
+            test_data_dict = pickle.load(f)
     except FileNotFoundError as e:
-        logger.error(f"Error loading test data: {e}")
+        logger.error(f"Error loading test data dict: {e}")
         return
 
-    logger.info(f"x_test shape: {x_test.shape} - y_test shape: {y_test.shape}")
+    logger.info(f"Loaded {sum(len(v) for v in test_data_dict.values())} test samples.")
 
     # Define transforms
     test_transform = transforms.Compose(
@@ -79,7 +47,7 @@ def main():
     )
 
     # Create test dataset and loader
-    test_dataset = NumpyDataset(x_test, y_test, transform=test_transform)
+    test_dataset = ImageDataset(test_data_dict, transform=test_transform)
     test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
 
     model = SwinTClassifier(
@@ -88,7 +56,7 @@ def main():
     ).to(device)
 
     # Load model weights
-    model_path = os.path.join(config.saved_model_dir, "SwinT.pth")
+    model_path = "weights/SwinT_best.pth"
     if not os.path.exists(model_path):
         logger.error(f"Model file not found at {model_path}.")
         return
@@ -125,10 +93,13 @@ def main():
     logger.info(
         f"Test Loss: {test_loss / len(test_loader):.4f}, Accuracy: {100 * correct / total:.2f}%"
     )
+    report = classification_report(y_true, y_pred, target_names=config.labels)
+    print("Classification Report:\n", report)
 
     cm = metrics.get_confusion_matrix(y_true, y_pred)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=config.labels)
     disp.plot(cmap=plt.cm.Blues)
+    plt.tight_layout()
     plt.show()
 
 
