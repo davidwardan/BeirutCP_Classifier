@@ -45,7 +45,7 @@ def main():
     logger.info(f"Loaded {sum(len(v) for v in test_data_dict.values())} test samples.")
 
     # Load preprocessor
-    constants_path = "output/norm_constants_tabular.json"
+    constants_path = config.in_dir + "norm_constants_tabular.json"
     preprocessor = DataPreprocessor(
         categorical_features=["socio_eco"],
         continuous_features=["floors_no"],
@@ -67,14 +67,12 @@ def main():
     model = TabularFNN(input_dim=tab_dim, num_classes=config.num_classes).to(device)
 
     # Load model weights
+    weights_dir = config.saved_model_dir + "fnn_best.pth"
     model_path = (
-        "weights/FNN_best.pth"
-        if os.path.exists("weights/FNN_best.pth")
-        else "weights/FNN.pth"
+        weights_dir
+        if os.path.exists(weights_dir)
+        else config.saved_model_dir + "fnn.pth"
     )
-    if not os.path.exists(model_path):
-        logger.error(f"Model file not found at {model_path}.")
-        return
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     logger.info(f"Restored weights from {model_path}")

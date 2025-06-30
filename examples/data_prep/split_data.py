@@ -14,7 +14,7 @@ def main(directory="data", splits=[0.7, 0.1, 0.2], labels_col="label"):
     df["split"] = None
 
     # Ensure reproducibility
-    random_state = 42
+    random_state = 42  # 235 #1 #42
 
     # Get the unique labels
     labels = df[labels_col].unique()

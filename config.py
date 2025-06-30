@@ -28,9 +28,9 @@ class Config:
 
     val = 1  # 1 if validation input is available, 0 otherwise
 
-    saved_model_dir = "weights/20241206-225836"  # leave empty to defaul model
+    saved_model_dir = "weights/run1/"  # leave empty to defaul model
 
-    in_dir = "input/"
+    in_dir = "input/run1/"
 
     timestr = str(time.strftime("%Y%m%d-%H%M%S"))
 

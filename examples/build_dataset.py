@@ -20,7 +20,7 @@ def load_image_as_array(path, size=(224, 224)):
         if augmnet:
             # If augment is True we apply a vertical flip
             image = Image.open(path).convert("RGB").resize(size)
-            image = image.transpose(Image.FLIP_TOP_BOTTOM)
+            image = image.transpose(Image.FLIP_LEFT_RIGHT)
         else:
             image = Image.open(path).convert("RGB").resize(size)
     except Exception as e:
@@ -89,6 +89,6 @@ def main(data_csv, dataset_type):
 
 if __name__ == "__main__":
     # Example usage
-    data_csv = "data/final_data.csv"
-    dataset_type = "dataset1"
+    data_csv = "data/data_run3.csv"
+    dataset_type = "dataset2"
     main(data_csv, dataset_type)

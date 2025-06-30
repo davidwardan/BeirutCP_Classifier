@@ -8,6 +8,7 @@ import tqdm
 from collections import Counter
 import random
 import io
+import math
 
 from lime import lime_image
 from skimage.segmentation import mark_boundaries
@@ -16,8 +17,9 @@ from typing import List, Tuple
 import torch
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image, preprocess_image
-from torchvision.transforms import ToTensor, Normalize, Resize, Compose
+from torchvision.transforms import ToTensor, Normalize, Resize, Compose, ToPILImage
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
+import torch.nn as nn
 
 
 class Utils:
@@ -89,54 +91,121 @@ class Utils:
         buf.close()
         return np.array(img)
 
-    def gradcam_explain_instance(model, image: np.ndarray, device: torch.device, target_class: int = None):
+    @staticmethod
+    def gradcam_explain_instance(
+        model,
+        image: np.ndarray,
+        device: torch.device,
+        *,
+        target_class: int | None = None,
+        stage_depth: int | None = -2,
+        target_layer_override: nn.Module | None = None,
+    ):
         """
-        Generate a Grad-CAM explanation for a given image.
-        
-        :param model: PyTorch model to explain.
-        :param image: Input image as a NumPy array (H x W x C) in RGB format.
-        :param device: Torch device (CPU or GPU).
-        :param target_class: The class index to visualize. If None, Grad-CAM will use the top predicted class.
-        :return: Grad-CAM explanation as a NumPy image (H x W x 3).
+        Generate a Grad‑CAM explanation for a single image.
+
+        Args:
+            model (nn.Module): PyTorch model or a wrapper such as ``SwinTClassifier``.
+            image (np.ndarray): RGB image as a NumPy array with shape (H, W, C) in
+                                the [0, 255] range.
+            device (torch.device): Device on which to run the explanation.
+            target_class (int, optional): Class index to visualise. If ``None``,
+                                          the model’s top prediction is used.
+            stage_depth (int, optional): Which Swin stage to visualise; ‑1 = last (7×7), ‑2 = second‑last (14×14).
+            target_layer_override (nn.Module, optional): If supplied, use this
+                exact layer for Grad‑CAM instead of auto‑finding one.  Overrides
+                ``stage_depth``.
+
+        Returns
+        -------
+        np.ndarray
+            RGB image with the Grad‑CAM heat‑map overlaid.
         """
-        model.eval()
+        # Move the model to the correct device and switch to eval mode
+        model = model.to(device).eval()
 
-        # Ensure model and image are on the correct device
-        model = model.to(device)
+        # 1. Pre‑process the input image
+        preprocess = Compose(
+            [
+                ToTensor(),
+                Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+        input_tensor = preprocess(image).unsqueeze(0).to(device)
 
-        # Preprocessing pipeline
-        transform = Compose([
-            # ToPILImage(),
-            Resize((224, 224)),
-            ToTensor(),
-            Normalize(mean=[0.485, 0.456, 0.406],
-                      std=[0.229, 0.224, 0.225]),
-        ])
-
-        # Convert the NumPy array to a PIL image and then to a tensor
-        input_tensor = transform(image).unsqueeze(0).to(device)
-
-        # Select a target layer for Grad-CAM
-        target_layer = model.layers[-1].blocks[-1].norm2
-    
-        # If a target class is specified, use ClassifierOutputTarget
-        # Otherwise, rely on the model to pick the top predicted class (target_category=None).
-        if target_class is not None:
-            targets = [ClassifierOutputTarget(target_class)]
+        # 2. Select the target layer
+        if target_layer_override is not None:
+            target_layer = target_layer_override
         else:
-            targets = None
+            if stage_depth is None:
+                raise ValueError(
+                    "Either stage_depth must be set or target_layer_override "
+                    "must be provided."
+                )
 
-        # Initialize Grad-CAM
-        grad_cam = GradCAM(model=model, target_layer=target_layer, use_cuda=(device.type == 'cuda'))
+            backbone = (
+                model.swin_transformer if hasattr(model, "swin_transformer") else model
+            )
 
-        # Compute Grad-CAM
-        grayscale_cam = grad_cam(input_tensor=input_tensor, targets=targets)
-        grayscale_cam = grayscale_cam[0, :]  # Extract CAM for the first (only) image
+            # Swin uses 4 stages (0,1,2,3). Negative index selects from the end.
+            if hasattr(backbone, "layers"):
+                stages = backbone.layers
+            elif hasattr(backbone, "stages"):
+                stages = backbone.stages
+            else:
+                raise RuntimeError("Cannot locate stages in backbone.")
 
-        # Convert original image to float32 and scale to [0,1]
-        rgb_img = np.float32(image) / 255.0
+            # Clamp and fetch requested stage
+            idx = stage_depth if stage_depth >= 0 else len(stages) + stage_depth
+            idx = max(0, min(idx, len(stages) - 1))
+            target_stage = stages[idx]
+            target_layer = target_stage.blocks[-1].norm2
 
-        # Overlay heatmap on the original image
+        # 3. Prepare reshape‑transform for Vision / Swin Transformers
+        def _reshape_transform(tensor: torch.Tensor) -> torch.Tensor:
+            """
+            Reshape a sequence of patch tokens to a 2‑D spatial map that looks
+            like a CNN activation: (B, C, H, W).
+
+            ‑ ViT: tensor shape is (B, 1+N, C) where the first token is CLS.
+              We drop CLS and map the remaining 196 tokens → 14×14 grid.
+            ‑ Swin: tensor shape is (B, N, C) with no CLS.  N is either
+              49 (7×7) for the last stage or 196 (14×14) for the previous one.
+            """
+
+            if tensor.ndim != 3:  # Already (B, C, H, W) – no change required.
+                return tensor
+
+            # Drop the CLS token if present
+            if tensor.shape[1] in (197, 577):  # 224² / 16² + 1 CLS or large ViT
+                tensor = tensor[:, 1:, :]
+
+            num_tokens = tensor.shape[1]
+            h = w = int(round(math.sqrt(num_tokens)))
+            if h * w != num_tokens:
+                raise ValueError(
+                    f"Cannot reshape sequence of length {num_tokens} "
+                    f"into a square grid (got h*w = {h*w})."
+                )
+
+            # (B, N, C) → (B, H, W, C) → (B, C, H, W)
+            result = tensor.reshape(tensor.size(0), h, w, tensor.size(2))
+            result = result.transpose(2, 3).transpose(1, 2)
+            return result
+
+        # 4. Run Grad‑CAM
+        cam = GradCAM(
+            model=model,  # full model (keeps the classifier head)
+            target_layers=[target_layer],
+            reshape_transform=_reshape_transform,
+        )
+        targets = (
+            [ClassifierOutputTarget(target_class)] if target_class is not None else None
+        )
+        grayscale_cam = cam(input_tensor=input_tensor, targets=targets)[0]
+
+        # 4. Overlay the heat‑map on the original image
+        rgb_img = image.astype(np.float32) / 255.0
         cam_image = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
 
         return cam_image

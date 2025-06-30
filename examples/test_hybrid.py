@@ -47,7 +47,7 @@ def main():
     logger.info(f"Loaded {sum(len(v) for v in test_data_dict.values())} test samples.")
 
     # Load preprocessor
-    constants_path = "output/norm_constants.json"
+    constants_path = config.in_dir + "norm_constants.json"
     preprocessor = DataPreprocessor(
         categorical_features=["socio_eco"],
         continuous_features=["floors_no"],
@@ -81,10 +81,11 @@ def main():
     ).to(device)
 
     # Load model weights
+    weights_dir = config.saved_model_dir + "Hybrid_best.pth"
     model_path = (
-        "weights/Hybrid_best.pth"
-        if os.path.exists("weights/Hybrid_best.pth")
-        else "weights/Hybrid.pth"
+        weights_dir
+        if os.path.exists(weights_dir)
+        else config.saved_model_dir + "Hybrid.pth"
     )
     if not os.path.exists(model_path):
         logger.error(f"Model file not found at {model_path}.")

@@ -56,10 +56,12 @@ def main():
     ).to(device)
 
     # Load model weights
-    model_path = "weights/SwinT_best.pth"
-    if not os.path.exists(model_path):
-        logger.error(f"Model file not found at {model_path}.")
-        return
+    weights_dir = config.saved_model_dir + "swint_nodrop_nolabel.pth"
+    model_path = (
+        weights_dir
+        if os.path.exists(weights_dir)
+        else config.saved_model_dir + "swint.pth"
+    )
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
 

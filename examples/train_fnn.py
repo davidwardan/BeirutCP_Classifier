@@ -30,7 +30,7 @@ def main(seed=42):
             val_data = pickle.load(f)
 
     # Fit preprocessor from original CSV
-    df = pd.read_csv("data/final_data.csv")
+    df = pd.read_csv("data/data_run1.csv")
     df_train = df[
         (df["split"] == "train") & (df["in_dataset_1"] == True) & df["label"].notna()
     ]
@@ -66,10 +66,7 @@ def main(seed=42):
     if optimizer_cls is None:
         raise ValueError("Invalid optimizer")
 
-    optimizer = optimizer_cls(model.parameters(), lr=config.lr_max)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=config.num_epochs, eta_min=config.lr_min
-    )
+    optimizer = optimizer_cls(model.parameters(), lr=config.lr_max * 10)
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
     # Training loop
@@ -92,8 +89,6 @@ def main(seed=42):
             _, preds = logits.max(1)
             total += y.size(0)
             correct += preds.eq(y).sum().item()
-
-        scheduler.step()
 
         if config.val:
             model.eval()

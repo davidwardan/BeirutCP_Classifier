@@ -10,7 +10,7 @@ columns_to_keep = [
     "Source",
     "floors_no",
     "socio_eco",
-    "ulabel",
+    "final_label",
     "IMGAVAL",
 ]
 
@@ -24,7 +24,7 @@ df_filtered.set_index("NID", inplace=True)
 df_filtered.replace([-999, "-999"], np.nan, inplace=True)
 
 # change name of 'ulabel' to 'label'
-df_filtered.rename(columns={"ulabel": "label"}, inplace=True)
+df_filtered.rename(columns={"final_label": "label"}, inplace=True)
 
 # change name of 'IMGAVAL' to 'has_image'
 df_filtered.rename(columns={"IMGAVAL": "has_image"}, inplace=True)
