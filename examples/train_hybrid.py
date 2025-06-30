@@ -97,7 +97,14 @@ def main(seed: int = 42):
     if optimizer_cls is None:
         raise ValueError("Invalid optimizer")
 
-    optimizer = optimizer_cls(model.parameters(), lr=config.lr_max)
+    # Use different learning rates for swin, tabular_net, and fusion_mlp
+    optimizer = optimizer_cls(
+        [
+            {"params": model.swin.parameters(), "lr": config.lr_max},
+            {"params": model.tabular_net.parameters(), "lr": config.lr_max * 0.1},
+            {"params": model.fusion_mlp.parameters(), "lr": config.lr_max * 0.1},
+        ]
+    )
 
     warmup_epochs = 5
     warmup_scheduler = LinearLR(optimizer, start_factor=0.1, total_iters=warmup_epochs)
