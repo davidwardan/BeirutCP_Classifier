@@ -12,13 +12,16 @@ class ConvNeXtClassifier(nn.Module):
         else:
             self.backbone = models.convnext_tiny(weights=None)
 
-        # Extract the number of features from the classifier head
-        in_features = self.backbone.classifier[2].in_features
-
-        # Remove the original classifier head
+        # Remove the default classifier
         self.backbone.classifier = nn.Identity()
 
-        # Define a new custom head
+        # Global average pooling to get (B, C)
+        self.pool = nn.AdaptiveAvgPool2d((1, 1))  # (B, C, 1, 1)
+
+        # Get feature size (ConvNeXt-Tiny has 768 features before classifier)
+        in_features = 768
+
+        # Custom head
         self.head = nn.Sequential(
             nn.Linear(in_features, 1024),
             nn.BatchNorm1d(1024),
@@ -32,5 +35,7 @@ class ConvNeXtClassifier(nn.Module):
         )
 
     def forward(self, x):
-        features = self.backbone(x)  # Shape (B, in_features)
-        return self.head(features)
+        x = self.backbone.features(x)  # (B, C, H, W)
+        x = self.pool(x)               # (B, C, 1, 1)
+        x = x.view(x.size(0), -1)      # Flatten to (B, C)
+        return self.head(x)

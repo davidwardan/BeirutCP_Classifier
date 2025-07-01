@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 import pickle
 from src.data_loader import ImageDataset
 from torchvision import transforms
-from src.swint_model import ConvNextClassifier
+from src.swint_model import ConvNeXtClassifier
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -50,7 +50,7 @@ def main():
     test_dataset = ImageDataset(test_data_dict, transform=test_transform)
     test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
 
-    model = ConvNextClassifier(
+    model = ConvNeXtClassifier(
         num_classes=config.num_classes,
         transfer_learning=(config.transfer_learning == 1),
     ).to(device)

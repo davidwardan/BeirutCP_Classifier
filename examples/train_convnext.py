@@ -13,7 +13,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from config import Config
-from src.swint_model import ConvNextClassifier
+from src.swint_model import ConvNeXtClassifier
 from src.data_loader import ImageDataset
 from src.data_preprocessor import DataPreprocessor
 
@@ -81,7 +81,7 @@ def main(seed: int = 42):
 
     # Initialize model
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = ConvNextClassifier(
+    model = ConvNeXtClassifier(
         num_classes=config.num_classes,
         transfer_learning=(config.transfer_learning == 1),
     ).to(device)
