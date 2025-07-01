@@ -15,8 +15,8 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, idx):
         record = self.entries[idx]
-        image = (record["image"] * 255).astype(np.uint8)
-        image = Image.fromarray(image)
+        image = (record["image"]).astype(np.uint8)
+        image = Image.fromarray(image).convert("RGB")
         if self.transform:
             image = self.transform(image)
 
@@ -59,8 +59,8 @@ class ImageTabularDataset(Dataset):
         record = self.entries[idx]
 
         # Get image (already preloaded in memory)
-        image = (record["image"] * 255).astype(np.uint8)
-        image = Image.fromarray(image)
+        image = (record["image"]).astype(np.uint8)
+        image = Image.fromarray(image).convert("RGB")
 
         if self.transform:
             image = self.transform(image)

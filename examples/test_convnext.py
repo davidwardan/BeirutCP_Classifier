@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 import pickle
 from src.data_loader import ImageDataset
 from torchvision import transforms
-from src.swint_model import ConvNeXtClassifier
+from src.convnext_model import ConvNeXtClassifier
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -56,11 +56,11 @@ def main():
     ).to(device)
 
     # Load model weights
-    weights_dir = config.saved_model_dir + "swint_new.pth"
+    weights_dir = config.saved_model_dir + "ConvNext_new.pth"
     model_path = (
         weights_dir
         if os.path.exists(weights_dir)
-        else config.saved_model_dir + "swint.pth"
+        else config.saved_model_dir + "ConvNext.pth"
     )
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()

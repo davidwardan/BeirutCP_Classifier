@@ -13,7 +13,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from config import Config
-from src.swint_model import ConvNeXtClassifier
+from src.convnext_model import ConvNeXtClassifier
 from src.data_loader import ImageDataset
 from src.data_preprocessor import DataPreprocessor
 
@@ -166,7 +166,7 @@ def main(seed: int = 42):
                     patience_counter = 0
                     torch.save(
                         model.state_dict(),
-                        os.path.join(config.out_dir, "SwinT_best.pth"),
+                        os.path.join(config.out_dir, "ConvNext_best.pth"),
                     )
                     print("Best model saved.")
                 else:
@@ -183,7 +183,7 @@ def main(seed: int = 42):
             )
 
     if not config.val:
-        torch.save(model.state_dict(), os.path.join(config.out_dir, "SwinT.pth"))
+        torch.save(model.state_dict(), os.path.join(config.out_dir, "ConvNext.pth"))
 
 
 if __name__ == "__main__":
