@@ -32,3 +32,6 @@ data/val
 __pycache__
 nohup.out
 *.pth
+
+# plot
+examples/plot/
