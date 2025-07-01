@@ -13,8 +13,8 @@ import pandas as pd
 from tqdm import tqdm
 
 from config import Config
-from src.hybrid_model import HybridSwinTabular
-from src.data_loader import ImageTabularDataset
+from src.swint_model import ConvNextClassifier
+from src.data_loader import ImageDataset
 from src.data_preprocessor import DataPreprocessor
 
 
@@ -28,11 +28,11 @@ def main(seed: int = 42):
     os.makedirs(config.out_dir, exist_ok=True)
 
     # Load pickled dataset (with embedded images)
-    with open(config.in_dir + "/train_dataset1.pkl", "rb") as f:
+    with open(config.in_dir + "/train_dataset2.pkl", "rb") as f:
         train_data_dict = pickle.load(f)
 
     if config.val:
-        with open(config.in_dir + "/val_dataset1.pkl", "rb") as f:
+        with open(config.in_dir + "/val_dataset2.pkl", "rb") as f:
             val_data_dict = pickle.load(f)
 
     # Define transforms
@@ -59,7 +59,7 @@ def main(seed: int = 42):
     # Create and fit preprocessor using raw CSV (required for scaling/tabular prep)
     df = pd.read_csv("data/final_data.csv")
     df_train = df[
-        (df["split"] == "train") & (df["in_dataset_1"] == True) & df["label"].notna()
+        (df["split"] == "train") & (df["in_dataset_2"] == True) & df["label"].notna()
     ]
 
     categorical_features = ["socio_eco"]
@@ -70,41 +70,27 @@ def main(seed: int = 42):
     preprocessor.save_constants("output/norm_constants.json")
 
     # Create PyTorch datasets/loaders
-    train_dataset = ImageTabularDataset(
-        train_data_dict, transform=train_transform, preprocessor=preprocessor
-    )
+    train_dataset = ImageDataset(train_data_dict, transform=train_transform)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
 
     if config.val:
-        val_dataset = ImageTabularDataset(
-            val_data_dict, transform=val_transform, preprocessor=preprocessor
-        )
+        val_dataset = ImageDataset(val_data_dict, transform=val_transform)
         val_loader = DataLoader(
             val_dataset, batch_size=config.batch_size, shuffle=False
         )
 
     # Initialize model
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    tabular_input_dim = preprocessor.transform(
-        pd.DataFrame([train_data_dict[list(train_data_dict.keys())[0]][0]])
-    ).shape[1]
-
-    model = HybridSwinTabular(
-        num_classes=config.num_classes, tabular_input_dim=tabular_input_dim
+    model = ConvNextClassifier(
+        num_classes=config.num_classes,
+        transfer_learning=(config.transfer_learning == 1),
     ).to(device)
+
     optimizer_cls = {"adam": optim.Adam, "sgd": optim.SGD}.get(config.optimizer)
     if optimizer_cls is None:
         raise ValueError("Invalid optimizer")
 
-    # Use different learning rates for swin, tabular_net, and fusion_mlp
-    optimizer = optimizer_cls(
-        [
-            {"params": model.swin.parameters(), "lr": config.lr_max},
-            {"params": model.tabular_net.parameters(), "lr": config.lr_max * 10},
-            {"params": model.fusion_mlp.parameters(), "lr": config.lr_max * 10},
-        ]
-    )
+    optimizer = optimizer_cls(model.parameters(), lr=config.lr_max)
 
     warmup_epochs = 5
     warmup_scheduler = LinearLR(optimizer, start_factor=0.1, total_iters=warmup_epochs)
@@ -131,14 +117,10 @@ def main(seed: int = 42):
         correct = 0
         total = 0
 
-        for inputs, tabular, labels in train_loader:
-            inputs, tabular, labels = (
-                inputs.to(device),
-                tabular.to(device),
-                labels.to(device).long(),
-            )
+        for inputs, labels in train_loader:
+            inputs, labels = inputs.to(device), labels.to(device).long()
             optimizer.zero_grad()
-            outputs = model(inputs, tabular)
+            outputs = model(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
@@ -157,13 +139,9 @@ def main(seed: int = 42):
             val_correct = 0
             val_total = 0
             with torch.no_grad():
-                for inputs, tabular, labels in val_loader:
-                    inputs, tabular, labels = (
-                        inputs.to(device),
-                        tabular.to(device),
-                        labels.to(device).long(),
-                    )
-                    outputs = model(inputs, tabular)
+                for inputs, labels in val_loader:
+                    inputs, labels = inputs.to(device), labels.to(device).long()
+                    outputs = model(inputs)
                     loss = criterion(outputs, labels)
                     val_loss += loss.item()
                     _, predicted = outputs.max(1)
@@ -188,7 +166,7 @@ def main(seed: int = 42):
                     patience_counter = 0
                     torch.save(
                         model.state_dict(),
-                        os.path.join(config.out_dir, "Hybrid_best.pth"),
+                        os.path.join(config.out_dir, "SwinT_best.pth"),
                     )
                     print("Best model saved.")
                 else:
@@ -205,7 +183,7 @@ def main(seed: int = 42):
             )
 
     if not config.val:
-        torch.save(model.state_dict(), os.path.join(config.out_dir, "Hybrid.pth"))
+        torch.save(model.state_dict(), os.path.join(config.out_dir, "SwinT.pth"))
 
 
 if __name__ == "__main__":
