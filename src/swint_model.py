@@ -6,11 +6,11 @@ class SwinTClassifier(nn.Module):
     def __init__(self, num_classes, transfer_learning=True):
         super(SwinTClassifier, self).__init__()
         if transfer_learning:
-            self.swin_transformer = models.swin_b(
-                weights=models.Swin_B_Weights.IMAGENET1K_V1
+            self.swin_transformer = models.swin_t(
+                weights=models.Swin_T_Weights.IMAGENET1K_V1
             )
         else:
-            self.swin_transformer = models.swin_b(weights=None)
+            self.swin_transformer = models.swin_t(weights=None)
 
         # Modify the classifier head
         self.swin_transformer.head = nn.Sequential(

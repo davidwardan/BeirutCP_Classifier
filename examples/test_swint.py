@@ -56,7 +56,7 @@ def main():
     ).to(device)
 
     # Load model weights
-    weights_dir = config.saved_model_dir + "swint_nodrop_nolabel.pth"
+    weights_dir = config.saved_model_dir + "swint_best.pth"
     model_path = (
         weights_dir
         if os.path.exists(weights_dir)
