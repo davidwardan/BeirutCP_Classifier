@@ -15,13 +15,13 @@ class SwinTClassifier(nn.Module):
         # Modify the classifier head
         self.swin_transformer.head = nn.Sequential(
             nn.Linear(self.swin_transformer.head.in_features, 1024),
-            nn.ReLU(),
             nn.BatchNorm1d(1024),
-            # nn.Dropout(p=0.4),
-            nn.Linear(1024, 256),
             nn.ReLU(),
+            nn.Dropout(p=0.2),
+            nn.Linear(1024, 256),
             nn.BatchNorm1d(256),
-            # nn.Dropout(p=0.2),
+            nn.ReLU(),
+            nn.Dropout(p=0.1),
             nn.Linear(256, num_classes),
         )
 
