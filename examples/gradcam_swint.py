@@ -13,21 +13,13 @@ import pickle
 import logging
 
 import numpy as np
-import pathlib  # for potential future path checks
 import matplotlib.pyplot as plt
-from sklearn.metrics import ConfusionMatrixDisplay, classification_report
-from tqdm import tqdm
 
 import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from torchvision import transforms
 
 from config import Config
-from src.data_loader import ImageDataset
 from src.swint_model import SwinTClassifier
-from src.metrics import metrics
-from src.utils import Utils  # contains `gradcam_explain_instance`
+from src.utils import Utils
 
 # ----------------------------------------------------------------------
 # Logging
@@ -71,6 +63,9 @@ def sample_one_image_per_label(test_data_dict, num_classes):
 # Main
 # ----------------------------------------------------------------------
 def main() -> None:
+    # set a seed for reproducibility
+    random.seed(42)
+
     cfg = Config()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -100,6 +95,8 @@ def main() -> None:
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
 
+    use_lime = True  # Set to True to use LIME instead of Grad-CAM
+
     # ------------------------------------------------------------------
     # Grad‑CAM for one random image per label
     # ------------------------------------------------------------------
@@ -121,14 +118,17 @@ def main() -> None:
         # `img_path` is already an RGB numpy array straight from the pickle
         img_np = img_path  # keeping variable name consistent with previous logic
 
-        # Run Grad‑CAM
-        cam_img = Utils.gradcam_explain_instance(
-            model,
-            img_np,
-            device,
-            target_class=class_idx,
-            target_layer_override=chosen_layer,
-        )
+        # Run Grad‑CAM or LIME
+        if use_lime:
+            cam_img = Utils.lime_explain_instance(model, img_np, 1500, 8)
+        else:
+            cam_img = Utils.gradcam_explain_instance(
+                model,
+                img_np,
+                device,
+                target_class=class_idx,
+                target_layer_override=chosen_layer,
+            )
 
         # Use human‑readable label if available, else the class index
         label_readable = (

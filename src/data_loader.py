@@ -46,9 +46,11 @@ class TabularDataset(Dataset):
 class ImageTabularDataset(Dataset):
     def __init__(self, data_dict, transform=None, preprocessor=None):
         self.entries = []
+        self.targets = []
         for nid, records in data_dict.items():
             for record in records:
                 self.entries.append(record)
+                self.targets.append(int(record["label"]))
         self.transform = transform
         self.preprocessor = preprocessor
 

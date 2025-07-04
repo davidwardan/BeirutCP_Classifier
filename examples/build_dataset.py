@@ -1,6 +1,5 @@
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
-from PIL import Image
+from PIL import Image, ImageEnhance
 import numpy as np
 from config import Config
 
@@ -20,7 +19,20 @@ def load_image_as_array(path, size=(224, 224)):
         if augmnet:
             # If augment is True we apply a vertical flip
             image = Image.open(path).convert("RGB").resize(size)
-            image = image.transpose(Image.FLIP_LEFT_RIGHT)
+            # Apply random slight rotation (-10 to 10 degrees)
+            angle = np.random.uniform(-10, 10)
+            image = image.rotate(angle, resample=Image.BICUBIC, expand=False)
+            # Apply random horizontal flip
+            if np.random.rand() > 0.5:
+                image = image.transpose(Image.FLIP_LEFT_RIGHT)
+            # Apply random brightness adjustment (0.8 to 1.2)
+            brightness = np.random.uniform(0.8, 1.2)
+            enhancer = ImageEnhance.Brightness(image)
+            image = enhancer.enhance(brightness)
+            # Apply random contrast adjustment (0.8 to 1.2)
+            contrast = np.random.uniform(0.8, 1.2)
+            enhancer = ImageEnhance.Contrast(image)
+            image = enhancer.enhance(contrast)
         else:
             image = Image.open(path).convert("RGB").resize(size)
     except Exception as e:
@@ -90,5 +102,5 @@ def main(data_csv, dataset_type):
 if __name__ == "__main__":
     # Example usage
     data_csv = "data/data_run3.csv"
-    dataset_type = "dataset2"
+    dataset_type = "dataset1"
     main(data_csv, dataset_type)

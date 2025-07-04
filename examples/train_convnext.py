@@ -56,19 +56,6 @@ def main(seed: int = 42):
         ]
     )
 
-    # Create and fit preprocessor using raw CSV (required for scaling/tabular prep)
-    df = pd.read_csv("data/final_data.csv")
-    df_train = df[
-        (df["split"] == "train") & (df["in_dataset_2"] == True) & df["label"].notna()
-    ]
-
-    categorical_features = ["socio_eco"]
-    continuous_features = ["floors_no"]
-
-    preprocessor = DataPreprocessor(categorical_features, continuous_features)
-    preprocessor.fit(df_train)
-    preprocessor.save_constants("output/norm_constants.json")
-
     # Create PyTorch datasets/loaders
     train_dataset = ImageDataset(train_data_dict, transform=train_transform)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)

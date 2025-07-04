@@ -56,11 +56,11 @@ def main():
     ).to(device)
 
     # Load model weights
-    weights_dir = config.saved_model_dir + "swint_new.pth"
+    weights_dir = config.saved_model_dir + "SwinT_best.pth"
     model_path = (
         weights_dir
         if os.path.exists(weights_dir)
-        else config.saved_model_dir + "swint.pth"
+        else config.saved_model_dir + "swinT.pth"
     )
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
