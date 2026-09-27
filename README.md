@@ -44,6 +44,13 @@ The model is trained to predict the construction periods that are divided into t
 The model architecture
 used in the project is a pre-trained [SwinT model](https://arxiv.org/abs/2103.14030) with a custom head fine-tuned on the dataset.
 
+An advanced experimental pipeline is available for leakage-safe grouped splits,
+ordinal learning, DINOv2/ConvNeXt backbones, adaptive image-tabular fusion,
+multi-resolution inputs, multi-view building aggregation, and targeted active
+learning. See [docs/ADVANCED_EXPERIMENTS.md](docs/ADVANCED_EXPERIMENTS.md) for the
+GPU-server workflow and ablation plan. The advanced pipeline has not been run by
+default and does not overwrite the legacy checkpoints or result files.
+
 ## Installation
 First, clone the repository using the following command:
 ```bash

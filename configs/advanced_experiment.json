@@ -1,0 +1,43 @@
+{
+  "seed": 13,
+  "output_directory": "output/advanced/seed_13_dinov2_gated_ordinal",
+  "data": {
+    "directory": "input/advanced/seed_13",
+    "dataset": "dataset1",
+    "image_size": 392,
+    "max_views": 3
+  },
+  "model": {
+    "num_classes": 5,
+    "backbone": "dinov2_vits14",
+    "pretrained": true,
+    "dino_repository": "facebookresearch/dinov2",
+    "embedding_dim": 256,
+    "use_tabular": true,
+    "fusion": "gated",
+    "tabular_modality_dropout": 0.15
+  },
+  "loss": {
+    "ce_weight": 1.0,
+    "emd_weight": 0.2,
+    "ordinal_weight": 0.2,
+    "image_aux_weight": 0.1,
+    "tabular_aux_weight": 0.05
+  },
+  "training": {
+    "batch_size": 16,
+    "num_workers": 8,
+    "epochs": 100,
+    "freeze_encoder_epochs": 5,
+    "encoder_learning_rate": 0.00005,
+    "head_learning_rate": 0.0005,
+    "minimum_learning_rate": 0.000001,
+    "warmup_epochs": 5,
+    "early_stop_patience": 10
+  },
+  "evaluation": {
+    "ordinal_probability_blend": 0.25,
+    "mae_selection_penalty": 0.1
+  }
+}
+

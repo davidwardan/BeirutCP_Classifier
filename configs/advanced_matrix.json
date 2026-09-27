@@ -1,0 +1,66 @@
+{
+  "seeds": [13, 37, 71],
+  "experiments": [
+    {
+      "name": "swin_ce_image_224",
+      "data": {"dataset": "dataset2", "image_size": 224, "max_views": 1},
+      "model": {"backbone": "swin_t", "use_tabular": false},
+      "loss": {
+        "ce_weight": 1.0,
+        "emd_weight": 0.0,
+        "ordinal_weight": 0.0,
+        "image_aux_weight": 0.0,
+        "tabular_aux_weight": 0.0
+      },
+      "evaluation": {"ordinal_probability_blend": 0.0}
+    },
+    {
+      "name": "dinov2_ce_image_392",
+      "data": {"dataset": "dataset2", "image_size": 392, "max_views": 1},
+      "model": {"backbone": "dinov2_vits14", "use_tabular": false},
+      "loss": {
+        "ce_weight": 1.0,
+        "emd_weight": 0.0,
+        "ordinal_weight": 0.0,
+        "image_aux_weight": 0.0,
+        "tabular_aux_weight": 0.0
+      },
+      "evaluation": {"ordinal_probability_blend": 0.0}
+    },
+    {
+      "name": "dinov2_ordinal_image_392",
+      "data": {"dataset": "dataset2", "image_size": 392, "max_views": 1},
+      "model": {"backbone": "dinov2_vits14", "use_tabular": false},
+      "loss": {"tabular_aux_weight": 0.0}
+    },
+    {
+      "name": "dinov2_concat_ordinal_392",
+      "data": {"dataset": "dataset1", "image_size": 392, "max_views": 1},
+      "model": {
+        "backbone": "dinov2_vits14",
+        "use_tabular": true,
+        "fusion": "concat",
+        "tabular_modality_dropout": 0.0
+      }
+    },
+    {
+      "name": "dinov2_gated_ordinal_392",
+      "data": {"dataset": "dataset1", "image_size": 392, "max_views": 1},
+      "model": {
+        "backbone": "dinov2_vits14",
+        "use_tabular": true,
+        "fusion": "gated"
+      }
+    },
+    {
+      "name": "dinov2_gated_ordinal_multiview_392",
+      "data": {"dataset": "dataset1", "image_size": 392, "max_views": 3},
+      "model": {
+        "backbone": "dinov2_vits14",
+        "use_tabular": true,
+        "fusion": "gated"
+      }
+    }
+  ]
+}
+

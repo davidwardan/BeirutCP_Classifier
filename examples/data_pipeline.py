@@ -48,15 +48,15 @@ def prepare_data(directory):
     df.to_csv(f"{directory}/prepared_data.csv")
 
 
-def split_data(directory, splits=[0.7, 0.1, 0.2], labels_col="label"):
+def split_data(
+    directory, splits=[0.7, 0.1, 0.2], labels_col="label", random_state=42
+):
     df = pd.read_csv(f"{directory}/prepared_data.csv")
 
     df["in_dataset_1"] = (df["has_image"]) & (df["has_tabular"])
     df["in_dataset_2"] = df["has_image"]
 
     df["split"] = None
-    random_state = 42
-
     df_test_candidates = df[df["in_dataset_1"]].copy()
     _, df_test = train_test_split(
         df_test_candidates,
@@ -94,17 +94,24 @@ def augment_data(directory, to_augment=["pre1935", "1972-1990"]):
     df.to_csv(f"{directory}/augmented_data.csv", index=False)
 
 
-def undersample_data(directory, to_undersample=["1935-1955", "post1990"], to_move=400):
+def undersample_data(directory, to_undersample=["1935-1955", "post1990"], to_remove=400):
+    """Exclude majority-class training rows without contaminating the test set.
+
+    This keeps the historical function name but changes its unsafe behavior.
+    Previously, selected training rows were moved into the held-out test set.
+    Excluded rows now receive the explicit ``excluded`` split and cannot be
+    consumed by train, validation, or test dataset builders.
+    """
     df = pd.read_csv(f"{directory}/augmented_data.csv")
     df["is_undersampled"] = False
 
     for period in to_undersample:
         mask = (df["label"] == period) & (df["in_dataset_1"]) & (df["split"] == "train")
         df_undersampled = df[mask].copy()
-        if len(df_undersampled) > to_move:
-            df_undersampled = df_undersampled.sample(n=to_move, random_state=42)
+        if len(df_undersampled) > to_remove:
+            df_undersampled = df_undersampled.sample(n=to_remove, random_state=42)
 
-        df.loc[df_undersampled.index, "split"] = "test"
+        df.loc[df_undersampled.index, "split"] = "excluded"
         df.loc[df_undersampled.index, "is_undersampled"] = True
 
     df.to_csv(f"{directory}/final_data.csv", index=False)
