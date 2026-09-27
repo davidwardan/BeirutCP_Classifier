@@ -2,6 +2,7 @@
 import os
 import pickle
 import torch
+import numpy as np
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -23,6 +24,26 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+import matplotlib as mpl
+
+# set plotting parameters
+mpl.rcParams.update(
+    {
+        "font.family": "serif",
+        "font.size": 8,
+        "savefig.bbox": "tight",
+        # PGF/LaTeX options for PGF export
+        "pgf.texsystem": "pdflatex",
+        "pgf.rcfonts": False,
+        "pgf.preamble": r"\usepackage{amsfonts}\usepackage{amssymb}",
+        # LaTeX rendering
+        "text.usetex": False,  # Set to True if you want full LaTeX rendering
+        # high resolution
+        "figure.dpi": 300,
+        "savefig.dpi": 300,
+    }
+)
 
 from tqdm import tqdm
 from src.metrics import metrics
@@ -81,7 +102,7 @@ def main():
     ).to(device)
 
     # Load model weights
-    weights_dir = config.saved_model_dir + "Hybrid_best.pth"
+    weights_dir = config.saved_model_dir + "Hybrid_kernel10.pth"
     model_path = (
         weights_dir
         if os.path.exists(weights_dir)
@@ -118,17 +139,35 @@ def main():
             y_true.extend(labels.cpu().numpy())
             y_pred.extend(predicted.cpu().numpy())
 
+    # log classification metrics
     logger.info(
         f"Test Loss: {test_loss / len(test_loader):.4f}, Accuracy: {100 * correct / total:.2f}%"
     )
     report = classification_report(y_true, y_pred, target_names=config.labels)
     print("Classification Report:\n", report)
 
+    # print m-score
+    m_score = metrics.get_mscore(np.array(y_pred), np.array(y_true))
+    normalized_m_score = metrics.get_normscore(
+        metrics.get_confusion_matrix(
+            np.array(y_pred), np.array(y_true), normalized=True
+        ),
+        config.num_classes,
+    )
+    logger.info(f"m_score: {m_score:.4f}, Normalized m_score: {normalized_m_score:.4f}")
+
+    # log confusion matrix
     cm = metrics.get_confusion_matrix(y_true, y_pred)
+
+    fig, ax = plt.subplots(figsize=(4, 4))
+
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=config.labels)
-    disp.plot(cmap=plt.cm.Blues)
+    disp.plot(cmap=plt.cm.Blues, ax=ax, colorbar=False)
+
+    ax.tick_params(axis="x", rotation=25)
     plt.tight_layout()
-    plt.show()
+    plt.savefig("confusion_matrix.pdf", bbox_inches="tight")
+    plt.close(fig)
 
 
 if __name__ == "__main__":

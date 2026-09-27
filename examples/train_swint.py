@@ -9,38 +9,6 @@ from torchvision.transforms import Normalize
 from torch.optim.lr_scheduler import SequentialLR, LinearLR, CosineAnnealingLR
 import torch.nn.functional as F
 
-
-# ------------------------------------------------------------------
-# Label‑smoothing toward adjacent construction periods only
-# ------------------------------------------------------------------
-def _neighbour_kernel(num_classes: int, bandwidth: int = 1):
-    idx = torch.arange(num_classes)
-    diff = (idx.unsqueeze(0) - idx.unsqueeze(1)).abs()
-    mask = ((diff > 0) & (diff <= bandwidth)).float()
-    row_sums = mask.sum(dim=1, keepdim=True)
-    # normalise each row so the neighbour probabilities sum to 1
-    mask = torch.where(row_sums == 0, mask, mask / row_sums)
-    return mask
-
-
-def neighbour_smooth(
-    y: torch.Tensor, num_classes: int, eps: float = 0.1, bandwidth: int = 1
-):
-    """
-    Distribute `eps` of the probability mass uniformly to the `bandwidth`
-    neighbouring classes on either side of the true label.
-    y: (N,) integer class indices.
-    Returns a (N, num_classes) tensor of soft labels.
-    """
-    K = _neighbour_kernel(num_classes, bandwidth).to(y.device)  # (C, C)
-    one_hot = F.one_hot(y, num_classes).float()
-    neigh_dist = K[y]  # (N, C)
-    return one_hot * (1.0 - eps) + eps * neigh_dist
-
-
-# ------------------------------------------------------------------
-
-
 import random
 import pandas as pd
 from tqdm import tqdm
@@ -49,9 +17,10 @@ from config import Config
 from src.swint_model import SwinTClassifier
 from src.data_loader import ImageDataset
 from src.data_preprocessor import DataPreprocessor
+from src.utils import neighbour_smooth
 
 
-def main(seed: int = 42, soft_labels: bool = True):
+def main(seed: int = 42, smooth_labels: bool = True):
     # Set seed for reproducibility
     random.seed(seed)
     torch.manual_seed(seed)
@@ -124,8 +93,8 @@ def main(seed: int = 42, soft_labels: bool = True):
         schedulers=[warmup_scheduler, main_scheduler],
         milestones=[warmup_epochs],
     )
-    if not soft_labels:
-        criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    if not smooth_labels:
+        criterion = nn.CrossEntropyLoss()
 
     print("Model ready to train...")
     best_val_loss = float("inf")
@@ -142,7 +111,7 @@ def main(seed: int = 42, soft_labels: bool = True):
             inputs, labels = inputs.to(device), labels.to(device).long()
             optimizer.zero_grad()
             outputs = model(inputs)
-            if not soft_labels:
+            if not smooth_labels:
                 loss = criterion(outputs, labels)
             else:
                 # Use neighbour smoothing for soft labels
@@ -173,7 +142,7 @@ def main(seed: int = 42, soft_labels: bool = True):
                 for inputs, labels in val_loader:
                     inputs, labels = inputs.to(device), labels.to(device).long()
                     outputs = model(inputs)
-                    if not soft_labels:
+                    if not smooth_labels:
                         loss = criterion(outputs, labels)
                     else:
                         soft_labels = neighbour_smooth(

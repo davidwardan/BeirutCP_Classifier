@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 import random
 import pandas as pd
 from tqdm import tqdm
@@ -12,9 +13,10 @@ from config import Config
 from src.data_preprocessor import DataPreprocessor
 from src.data_loader import TabularDataset
 from src.fnn_model import TabularFNN
+from src.utils import Utils
 
 
-def main(seed=42):
+def main(seed: int = 42, smooth_labels: bool = True):
     random.seed(seed)
     torch.manual_seed(seed)
 
@@ -67,7 +69,9 @@ def main(seed=42):
         raise ValueError("Invalid optimizer")
 
     optimizer = optimizer_cls(model.parameters(), lr=config.lr_max * 10)
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+
+    if not smooth_labels:
+        criterion = nn.CrossEntropyLoss()
 
     # Training loop
     best_val_loss = float("inf")
@@ -81,7 +85,17 @@ def main(seed=42):
             x, y = x.to(device), y.to(device).long()
             optimizer.zero_grad()
             logits = model(x)
-            loss = criterion(logits, y)
+            if not smooth_labels:
+                loss = criterion(logits, y)
+            else:
+                # Use neighbour smoothing for soft y
+                soft_y = Utils.neighbour_smooth(
+                    y,
+                    num_classes=config.num_classes,
+                    eps=0.1,  # adjust if desired
+                    bandwidth=1,
+                )
+                loss = F.cross_entropy(logits, soft_y)
             loss.backward()
             optimizer.step()
 
@@ -97,7 +111,17 @@ def main(seed=42):
                 for x, y in val_loader:
                     x, y = x.to(device), y.to(device).long()
                     logits = model(x)
-                    loss = criterion(logits, y)
+                    if not smooth_labels:
+                        loss = criterion(logits, y)
+                    else:
+                        # Use neighbour smoothing for soft y
+                        soft_y = Utils.neighbour_smooth(
+                            y,
+                            num_classes=config.num_classes,
+                            eps=0.1,  # adjust if desired
+                            bandwidth=1,
+                        )
+                        loss = F.cross_entropy(logits, soft_y)
                     val_loss += loss.item()
                     _, preds = logits.max(1)
                     val_total += y.size(0)
@@ -140,4 +164,4 @@ def main(seed=42):
 
 
 if __name__ == "__main__":
-    main()
+    main(42, False)

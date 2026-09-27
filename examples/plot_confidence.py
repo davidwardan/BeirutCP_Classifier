@@ -24,6 +24,26 @@ from src.swint_model import SwinTClassifier
 from src.fnn_model import TabularFNN
 from src.hybrid_model import HybridSwinTabular
 
+import matplotlib as mpl
+
+# set plotting parameters
+mpl.rcParams.update(
+    {
+        "font.family": "serif",
+        "font.size": 8,
+        "savefig.bbox": "tight",
+        # PGF/LaTeX options for PGF export
+        "pgf.texsystem": "pdflatex",
+        "pgf.rcfonts": False,
+        "pgf.preamble": r"\usepackage{amsfonts}\usepackage{amssymb}",
+        # LaTeX rendering
+        "text.usetex": False,  # Set to True if you want full LaTeX rendering
+        # high resolution
+        "figure.dpi": 300,
+        "savefig.dpi": 300,
+    }
+)
+
 # ----------------------------------------------------------------------
 
 logging.basicConfig(
@@ -98,89 +118,105 @@ def show_sample_predictions(
     class_names: List[str],
 ):
     """
-    Build a figure with columns:
-        image | FNN bars | SwinT bars | Hybrid bars
+    Build one minimal row figure per sample with columns:
+        image | model confidence bars...
+    Saves each row as PNG and PDF for manuscript use.
     """
     mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
     std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+    socio_to_index = {
+        "low-income zone": 1,
+        "majority low-income zone": 1,
+        "approximately 50% low-income zone": 2,
+        "approximately 50\\% low-income zone": 2,
+        "minority low-income zone": 3,
+        "not low-income zone": 4,
+    }
 
     all_samples = list(loader)
-    fig_all, axes_all = zip(
-        *[
-            plt.subplots(
-                nrows=1,
-                ncols=1 + len(models),
-                figsize=(3 + 2.5 * len(models), 2.5),
-                gridspec_kw={"width_ratios": [1] + [1.2] * len(models)},
-            )
-            for _ in range(len(all_samples))
-        ]
-    )
+    if not all_samples or len(models) == 0:
+        return
+
+    n_cols = 1 + len(models)
+    os.makedirs("output/plots", exist_ok=True)
+
     for r, (img, tab, label) in enumerate(all_samples):
-        axes = axes_all[r]
-        if len(models) == 0:
-            continue
+        fig, row_axes = plt.subplots(
+            nrows=1,
+            ncols=n_cols,
+            figsize=(2.0 + 2.0 * len(models), 2.3),
+            gridspec_kw={"width_ratios": [1.0] + [1.15] * len(models)},
+            constrained_layout=True,
+        )
+        true_idx = label.item()
 
         original_dataset = loader.dataset.dataset
         record_idx = loader.dataset.indices[r]
         record = original_dataset.entries[record_idx]
         cont_val = record["floors_no"]
         cat_val = record["socio_eco"]
-        tabular_info = [f"{cont_val}", f"{cat_val}"]
+        if isinstance(cat_val, str):
+            socio_idx = socio_to_index.get(cat_val.strip().lower(), cat_val)
+        else:
+            socio_idx = cat_val
+        tabular_info = (
+            f"Number of floors: {cont_val}\n"
+            f"Socio-economic class: {socio_idx}"
+        )
         img, tab = img.to(device), tab.to(device)
 
         # leftmost cell = image
         disp_img = (img.squeeze() * std + mean).clamp(0, 1).permute(1, 2, 0)
-        axes[0].imshow(disp_img)
-        # axes[0].set_title(f"True: {class_names[label.item()]}", fontsize=10)
-        axes[0].axis("off")
-        # Display tabular info below the image, allowing wrapping if too long
-        tab_str = "\n".join(tabular_info)
-        # Use wrap=True and adjust bbox for better visibility if needed
-        axes[0].text(
+        row_axes[0].imshow(disp_img)
+        row_axes[0].axis("off")
+        row_axes[0].text(
             0.5,
-            -0.15,
-            tab_str,
-            transform=axes[0].transAxes,
-            fontsize=10,
+            -0.1,
+            tabular_info,
+            transform=row_axes[0].transAxes,
+            fontsize=7,
             ha="center",
             va="top",
             wrap=True,
-            bbox=dict(
-                facecolor="white", alpha=0.7, edgecolor="none", boxstyle="round,pad=0.2"
-            ),
         )
+        row_axes[0].set_title(f"True: {class_names[true_idx]}", fontsize=8, pad=8)
 
         # predictions for each model
         for c, (model, mname) in enumerate(zip(models, model_names), start=1):
             if mname == "FNN":
                 logits = model(tab)
-            elif mname == "SwinT" or mname == "SwinT (dataset2)":
+            elif mname in {"SwinT", "SwinT1", "SwinT (D1)", "SwinT (D2)"}:
                 logits = model(img)
             else:
                 logits = model(img, tab)
 
             probs = torch.softmax(logits, dim=1).cpu().numpy().squeeze()
+            pred_idx = int(probs.argmax())
 
-            ax = axes[c]
-            bar_colors = [
-                "forestgreen" if i == label.item() else "steelblue"
-                for i in range(len(class_names))
-            ]
-            ax.barh(class_names, probs, color=bar_colors)
+            ax = row_axes[c]
+            bar_colors = ["#C2C8CF"] * len(class_names)
+            # bar_colors[true_idx] = "#2E7D32"
+            bar_colors[pred_idx] = "#1F77B4"
+
+            ax.barh(class_names, probs, color=bar_colors, edgecolor="none")
             ax.set_xlim(0, 1)
-            ax.set_xlabel("prob.", fontsize=10)
-            if r == 0:
-                ax.set_title(f"{mname} Model", fontsize=10)
-            for spine in ("top", "right"):
+            ax.set_xticks([0.0, 1.0])
+            ax.tick_params(axis="x", labelsize=7)
+            ax.tick_params(axis="y", labelsize=7)
+            if c > 1:
+                ax.set_yticklabels([])
+            ax.set_xlabel("Prob.", fontsize=8)
+            ax.set_title(mname, fontsize=9, pad=3)
+            for spine in ("top", "right", "left"):
                 ax.spines[spine].set_visible(False)
+            ax.spines["bottom"].set_color("0.6")
+            if pred_idx == true_idx:
+                ax.set_facecolor("#D7FECC77")
+            else:
+                ax.set_facecolor("#FDE4DB7D")
 
-    import os
-
-    os.makedirs("output/plots", exist_ok=True)
-    for i, fig in enumerate(fig_all):
-        fig.tight_layout()
-        fig.savefig(f"output/plots/confidence_{i}.png", dpi=300)
+        fig.savefig(f"output/plots/confidence_row_{r:02d}.png", dpi=400, bbox_inches="tight")
+        fig.savefig(f"output/plots/confidence_row_{r:02d}.pdf", bbox_inches="tight")
         plt.close(fig)
 
 
@@ -228,7 +264,7 @@ def main():
     ).to(device)
     swint.load_state_dict(
         torch.load(
-            os.path.join(cfg.saved_model_dir, "swinT1_best.pth"), map_location=device
+            os.path.join(cfg.saved_model_dir, "swinT1_kernel10.pth"), map_location=device
         )
     )
     swint.eval()
@@ -240,7 +276,7 @@ def main():
     ).to(device)
     swint_plus.load_state_dict(
         torch.load(
-            os.path.join(cfg.saved_model_dir, "swinT_best.pth"), map_location=device
+            os.path.join(cfg.saved_model_dir, "swinT_kernel10.pth"), map_location=device
         )
     )
     swint_plus.eval()
@@ -251,7 +287,7 @@ def main():
     ).to(device)
     fnn.load_state_dict(
         torch.load(
-            os.path.join(cfg.saved_model_dir, "fnn_best.pth"), map_location=device
+            os.path.join(cfg.saved_model_dir, "fnn_kernel10.pth"), map_location=device
         )
     )
     fnn.eval()
@@ -262,13 +298,13 @@ def main():
     ).to(device)
     hybrid.load_state_dict(
         torch.load(
-            os.path.join(cfg.saved_model_dir, "Hybrid_best.pth"), map_location=device
+            os.path.join(cfg.saved_model_dir, "Hybrid_kernel10.pth"), map_location=device
         )
     )
     hybrid.eval()
 
-    models = [swint, fnn, hybrid, swint_plus]
-    model_names = ["SwinT", "FNN", "Hybrid", "SwinT (dataset2)"]
+    models = [swint, swint_plus, fnn, hybrid]
+    model_names = ["SwinT (D1)", "SwinT (D2)", "FNN", "Hybrid"]
 
     # ── 6. Pick one random image per class & visualise predictions ───
     sample_ds = get_one_sample_per_label(test_ds, cfg.num_classes)

@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.transforms import Normalize
 from torch.optim.lr_scheduler import SequentialLR, LinearLR, CosineAnnealingLR
+import torch.nn.functional as F
 
 import random
 import pandas as pd
@@ -16,9 +17,10 @@ from config import Config
 from src.hybrid_model import HybridSwinTabular
 from src.data_loader import ImageTabularDataset
 from src.data_preprocessor import DataPreprocessor
+from src.utils import neighbour_smooth
 
 
-def main(seed: int = 42):
+def main(seed: int = 42, smooth_labels: bool = True):
     # Set seed for reproducibility
     random.seed(seed)
     torch.manual_seed(seed)
@@ -118,7 +120,8 @@ def main(seed: int = 42):
         schedulers=[warmup_scheduler, main_scheduler],
         milestones=[warmup_epochs],
     )
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    if not smooth_labels:
+        criterion = nn.CrossEntropyLoss()
 
     print("Model ready to train...")
     best_val_loss = float("inf")
@@ -139,7 +142,17 @@ def main(seed: int = 42):
             )
             optimizer.zero_grad()
             outputs = model(inputs, tabular)
-            loss = criterion(outputs, labels)
+            if not smooth_labels:
+                loss = criterion(outputs, labels)
+            else:
+                # Use neighbour smoothing for soft labels
+                soft_labels = neighbour_smooth(
+                    labels,
+                    num_classes=config.num_classes,
+                    eps=0.1,  # adjust if desired
+                    bandwidth=1,
+                )
+                loss = F.cross_entropy(outputs, soft_labels)
             loss.backward()
             optimizer.step()
 
@@ -164,7 +177,17 @@ def main(seed: int = 42):
                         labels.to(device).long(),
                     )
                     outputs = model(inputs, tabular)
-                    loss = criterion(outputs, labels)
+                    if not smooth_labels:
+                        loss = criterion(outputs, labels)
+                    else:
+                        # Use neighbour smoothing for soft labels
+                        soft_labels = neighbour_smooth(
+                            labels,
+                            num_classes=config.num_classes,
+                            eps=0.1,  # adjust if desired
+                            bandwidth=1,
+                        )
+                        loss = F.cross_entropy(outputs, soft_labels)
                     val_loss += loss.item()
                     _, predicted = outputs.max(1)
                     val_total += labels.size(0)

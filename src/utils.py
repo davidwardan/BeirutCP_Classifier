@@ -1,25 +1,20 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
 from PIL import Image
 import pickle
 import os
 import tqdm
 from collections import Counter
-import random
 import io
-import math
-
 from lime import lime_image
 from skimage.segmentation import mark_boundaries
 import shap
 from typing import List, Tuple
 import torch
-from pytorch_grad_cam import GradCAM
+from pytorch_grad_cam import GradCAM, EigenCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image, preprocess_image
-from torchvision.transforms import ToTensor, Normalize, Resize, Compose, ToPILImage
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
-import torch.nn as nn
+import torch.nn.functional as F
 
 
 class Utils:
@@ -60,6 +55,31 @@ class Utils:
         )
         return mark_boundaries(temp / 2 + 0.5, mask)
 
+    # Label‑smoothing toward adjacent construction periods only
+    def _neighbour_kernel(num_classes: int, bandwidth: int = 1):
+        idx = torch.arange(num_classes)
+        diff = (idx.unsqueeze(0) - idx.unsqueeze(1)).abs()
+        mask = ((diff > 0) & (diff <= bandwidth)).float()
+        row_sums = mask.sum(dim=1, keepdim=True)
+        # normalise each row so the neighbour probabilities sum to 1
+        mask = torch.where(row_sums == 0, mask, mask / row_sums)
+        return mask
+
+    @staticmethod
+    def neighbour_smooth(
+         y: torch.Tensor, num_classes: int, eps: float = 0.1, bandwidth: int = 1
+    ):
+        """
+        Distribute `eps` of the probability mass uniformly to the `bandwidth`
+        neighbouring classes on either side of the true label.
+        y: (N,) integer class indices.
+        Returns a (N, num_classes) tensor of soft labels.
+        """
+        K = Utils._neighbour_kernel(num_classes, bandwidth).to(y.device)  # (C, C)
+        one_hot = F.one_hot(y, num_classes).float()
+        neigh_dist = K[y]  # (N, C)
+        return one_hot * (1.0 - eps) + eps * neigh_dist
+
     @staticmethod
     def shapley_explain_instance(
         model, image, labels: List[str] = None, evals: int = 5000, top_labels: int = 3
@@ -93,122 +113,113 @@ class Utils:
 
     @staticmethod
     def gradcam_explain_instance(
-        model,
-        image: np.ndarray,
+        model: torch.nn.Module,
+        img_np: np.ndarray,
         device: torch.device,
         *,
         target_class: int | None = None,
-        stage_depth: int | None = -2,
-        target_layer_override: nn.Module | None = None,
-    ):
+        target_layer_override: torch.nn.Module | None = None,
+        mean: tuple[float, float, float] = (0.485, 0.456, 0.406),
+        std: tuple[float, float, float] = (0.229, 0.224, 0.225),
+        eigen_smooth: bool = True,
+        aug_smooth: bool = False,
+    ) -> np.ndarray:
         """
-        Generate a Grad‑CAM explanation for a single image.
+        Generate a Grad-CAM heat-map overlay for one RGB image.
 
-        Args:
-            model (nn.Module): PyTorch model or a wrapper such as ``SwinTClassifier``.
-            image (np.ndarray): RGB image as a NumPy array with shape (H, W, C) in
-                                the [0, 255] range.
-            device (torch.device): Device on which to run the explanation.
-            target_class (int, optional): Class index to visualise. If ``None``,
-                                          the model’s top prediction is used.
-            stage_depth (int, optional): Which Swin stage to visualise; ‑1 = last (7×7), ‑2 = second‑last (14×14).
-            target_layer_override (nn.Module, optional): If supplied, use this
-                exact layer for Grad‑CAM instead of auto‑finding one.  Overrides
-                ``stage_depth``.
+        Parameters
+        ----------
+        model : SwinTClassifier
+            Your trained wrapper model (already ``eval()``-ed outside).
+        img_np : np.ndarray
+            RGB image array (H×W×3, uint8 or float in [0, 1]).
+        device : torch.device
+            CPU or CUDA device.
+        target_class : int, optional
+            If ``None`` we run a forward pass and pick ``argmax``.
+        target_layer_override : nn.Module, optional
+            Custom layer to hook; default = ``model.swin_transformer.norm``.
+        mean, std : tuple(float), optional
+            Normalisation used in training.
+        eigen_smooth, aug_smooth : bool
+            Passed straight to *pytorch-grad-cam*.
 
         Returns
         -------
-        np.ndarray
-            RGB image with the Grad‑CAM heat‑map overlaid.
+        cam_overlay : np.ndarray
+            RGB uint8 image with the CAM heat-map already blended in.
         """
-        # Move the model to the correct device and switch to eval mode
         model = model.to(device).eval()
 
-        # 1. Pre‑process the input image
-        preprocess = Compose(
-            [
-                ToTensor(),
-                Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ]
+        def swin_reshape_transform(tensor: torch.Tensor) -> torch.Tensor:
+            """
+            Convert Swin activations from NHWC -> NCHW for pytorch-grad-cam.
+            For non-NHWC tensors, return unchanged.
+            """
+            if tensor.ndim == 4 and tensor.shape[-1] > 4 and tensor.shape[1] <= tensor.shape[-1]:
+                return tensor.permute(0, 3, 1, 2)
+            return tensor
+
+        # ------------------------------------------------------------------
+        # Pick layer and build Grad-CAM object
+        # ------------------------------------------------------------------
+        target_layer = (
+            target_layer_override
+            if target_layer_override is not None
+            else model.swin_transformer.features[-1][-1].norm2
         )
-        input_tensor = preprocess(image).unsqueeze(0).to(device)
-
-        # 2. Select the target layer
-        if target_layer_override is not None:
-            target_layer = target_layer_override
-        else:
-            if stage_depth is None:
-                raise ValueError(
-                    "Either stage_depth must be set or target_layer_override "
-                    "must be provided."
-                )
-
-            backbone = (
-                model.swin_transformer if hasattr(model, "swin_transformer") else model
-            )
-
-            # Swin uses 4 stages (0,1,2,3). Negative index selects from the end.
-            if hasattr(backbone, "layers"):
-                stages = backbone.layers
-            elif hasattr(backbone, "stages"):
-                stages = backbone.stages
-            else:
-                raise RuntimeError("Cannot locate stages in backbone.")
-
-            # Clamp and fetch requested stage
-            idx = stage_depth if stage_depth >= 0 else len(stages) + stage_depth
-            idx = max(0, min(idx, len(stages) - 1))
-            target_stage = stages[idx]
-            target_layer = target_stage.blocks[-1].norm2
-
-        # 3. Prepare reshape‑transform for Vision / Swin Transformers
-        def _reshape_transform(tensor: torch.Tensor) -> torch.Tensor:
-            """
-            Reshape a sequence of patch tokens to a 2‑D spatial map that looks
-            like a CNN activation: (B, C, H, W).
-
-            ‑ ViT: tensor shape is (B, 1+N, C) where the first token is CLS.
-              We drop CLS and map the remaining 196 tokens → 14×14 grid.
-            ‑ Swin: tensor shape is (B, N, C) with no CLS.  N is either
-              49 (7×7) for the last stage or 196 (14×14) for the previous one.
-            """
-
-            if tensor.ndim != 3:  # Already (B, C, H, W) – no change required.
-                return tensor
-
-            # Drop the CLS token if present
-            if tensor.shape[1] in (197, 577):  # 224² / 16² + 1 CLS or large ViT
-                tensor = tensor[:, 1:, :]
-
-            num_tokens = tensor.shape[1]
-            h = w = int(round(math.sqrt(num_tokens)))
-            if h * w != num_tokens:
-                raise ValueError(
-                    f"Cannot reshape sequence of length {num_tokens} "
-                    f"into a square grid (got h*w = {h*w})."
-                )
-
-            # (B, N, C) → (B, H, W, C) → (B, C, H, W)
-            result = tensor.reshape(tensor.size(0), h, w, tensor.size(2))
-            result = result.transpose(2, 3).transpose(1, 2)
-            return result
-
-        # 4. Run Grad‑CAM
         cam = GradCAM(
-            model=model,  # full model (keeps the classifier head)
+            model=model,
             target_layers=[target_layer],
-            reshape_transform=_reshape_transform,
+            reshape_transform=swin_reshape_transform,
         )
-        targets = (
-            [ClassifierOutputTarget(target_class)] if target_class is not None else None
+
+        # Prepare the input tensor
+        input_size = (224, 224)
+        img_arr = np.asarray(img_np)
+        if img_arr.ndim == 3 and img_arr.shape[-1] not in (1, 3, 4) and img_arr.shape[0] in (1, 3, 4):
+            img_arr = np.transpose(img_arr, (1, 2, 0))
+        if img_arr.ndim == 2:
+            img_arr = np.stack([img_arr] * 3, axis=-1)
+        if img_arr.shape[-1] == 4:
+            img_arr = img_arr[:, :, :3]
+        if img_arr.dtype != np.uint8:
+            img_arr = np.clip(img_arr, 0, 255).astype(np.uint8)
+
+        pil_img = Image.fromarray(img_arr).convert("RGB")
+        try:
+            resample = Image.Resampling.BILINEAR
+        except AttributeError:
+            resample = Image.BILINEAR
+        pil_img = pil_img.resize(input_size, resample=resample)
+        rgb_float = np.asarray(pil_img).astype(np.float32) / 255.0
+        input_tensor = preprocess_image(
+            rgb_float,
+            mean=mean,
+            std=std,
         )
-        grayscale_cam = cam(input_tensor=input_tensor, targets=targets)[0]
+        input_tensor = input_tensor.to(device)
 
-        # 4. Overlay the heat‑map on the original image
-        rgb_img = image.astype(np.float32) / 255.0
-        cam_image = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
+        # Decide which class to visualise
+        if target_class is None:
+            with torch.no_grad():
+                scores = model(input_tensor)
+                target_class = int(scores.argmax().item())
 
-        return cam_image
+        targets = [ClassifierOutputTarget(target_class)]
+
+        # Run Grad-CAM
+        grayscale_cam = cam(
+            input_tensor=input_tensor,
+            targets=targets,
+            aug_smooth=aug_smooth,
+            eigen_smooth=eigen_smooth,
+        )[0]
+
+        # Overlay heat-map on the *original* RGB (0-1 floats)
+        cam_image = show_cam_on_image(rgb_float, grayscale_cam, use_rgb=True)
+
+        return cam_image.astype(np.uint8)
 
 
 class Processing:
