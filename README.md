@@ -47,7 +47,8 @@ used in the project is a pre-trained [SwinT model](https://arxiv.org/abs/2103.14
 An advanced experimental pipeline is available for leakage-safe grouped splits,
 ordinal learning, DINOv2/ConvNeXt backbones, adaptive image-tabular fusion,
 multi-resolution inputs, multi-view building aggregation, and targeted active
-learning. See [docs/ADVANCED_EXPERIMENTS.md](docs/ADVANCED_EXPERIMENTS.md) for the
+learning. It also includes ANN, logistic-regression, and random-forest
+tabular-only baselines. See [docs/ADVANCED_EXPERIMENTS.md](docs/ADVANCED_EXPERIMENTS.md) for the
 GPU-server workflow and ablation plan. The advanced pipeline has not been run by
 default and does not overwrite the legacy checkpoints or result files.
 

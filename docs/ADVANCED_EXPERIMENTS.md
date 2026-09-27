@@ -10,12 +10,15 @@ setup because the intended experiments require a GPU.
 - Explicit split manifests and metadata for each seed.
 - Swin-T, ConvNeXt-Tiny, and DINOv2 ViT-S/14 encoders.
 - Configurable image resolution using original image paths instead of upscaling
-  the legacy 224-pixel arrays.
+  the legacy 224-pixel arrays. The controlled matrix fixes all primary models at
+  224 pixels.
 - Multi-view attention pooling at the building level.
 - Cross-entropy combined with squared EMD and a rank-consistent cumulative head.
 - Equal-dimensional image/tabular projections with gated, FiLM, or concatenation
   fusion.
 - Image-only and tabular-only auxiliary heads plus tabular-modality dropout.
+- Tabular-only ANN (CE and ordinal), logistic-regression, and random-forest baselines.
+- Real, masked, and shuffled-tabular inference conditions for fusion models.
 - Accuracy, balanced accuracy, macro metrics, class-index MAE, expected-index
   MAE, quadratic weighted kappa, and calibration error.
 - Active-learning ranking using entropy, prediction margin, and disagreement
@@ -70,26 +73,21 @@ the trainer to read the original files at 224, 392, or another resolution.
 
 ## 3. Configure the experiment
 
-Copy `configs/advanced_experiment.json` for each ablation. Recommended minimal
-matrix:
+The controlled matrix in `configs/advanced_matrix.json` contains 14
+configurations for each seed:
 
-| ID | Backbone | Loss | Inputs/fusion |
-|---|---|---|---|
-| B0 | Swin-T | CE only | Image only |
-| B1 | DINOv2 ViT-S/14 | CE only | Image only |
-| B2 | DINOv2 ViT-S/14 | CE + EMD + ordinal | Image only |
-| B3 | DINOv2 ViT-S/14 | CE + EMD + ordinal | Concatenated image/tabular |
-| P1 | DINOv2 ViT-S/14 | CE + EMD + ordinal + auxiliary | Gated fusion |
-| P2 | DINOv2 ViT-S/14 | Same as P1 | Gated multi-view fusion |
+| Family | Dataset 1 experiments | Dataset 2 experiment |
+|---|---|---|
+| Swin-T | CE image, ordinal image, ordinal concatenation, ordinal gating | Ordinal image |
+| DINOv2 | CE image, ordinal image, ordinal concatenation, ordinal gating | Ordinal image |
+| Tabular | ANN CE, ANN ordinal, logistic regression, random forest | Not applicable |
 
-For image-only runs, set `use_tabular` to `false`, all auxiliary weights not
-used by that model to zero, and use dataset 2 where appropriate. For a pure CE
-baseline, set `emd_weight` and `ordinal_weight` to zero and set
-`ordinal_probability_blend` to zero.
-
-DINOv2 uses 14-pixel patches, so choose an image size divisible by 14 (for
-example 224 or 392). The first run will retrieve the pretrained model through
-PyTorch Hub; pre-populate the server cache if compute nodes have no internet.
+All image experiments use one 224-by-224 image per building. Dataset-1
+image-only results are the controlled baselines for fusion; dataset-2 results
+measure the separate effect of additional image data. DINOv2 uses 14-pixel
+patches, and 224 produces an exact 16-by-16 patch grid. The first DINOv2 run
+retrieves the pretrained model through PyTorch Hub; pre-populate the server
+cache if compute nodes have no internet.
 
 ## 4. Train on the GPU server
 
@@ -105,19 +103,44 @@ training-only tabular normalization constants, and the best checkpoint. Model
 selection uses validation macro-F1 with a configurable MAE penalty. The test set
 must not be used for model or probability-blend selection.
 
-To materialize the complete six-model by three-seed ablation matrix without
-starting training, run:
+To materialize the complete 14-model by three-seed matrix without starting
+training, run:
 
 ```bash
 python -m examples.run_advanced_matrix
 ```
 
-This writes 18 resolved configuration files and a `commands.txt` file. After
+This writes 42 resolved configuration files and a `commands.txt` file. After
 checking the paths and GPU batch size, execute the matrix sequentially with:
 
 ```bash
-python -m examples.run_advanced_matrix --execute
+python -m examples.run_advanced_matrix --execute --evaluate
 ```
+
+The runner supports regular-expression filtering. For example,
+`--include-pattern '^(swin_|ann_)'` selects only the five Swin-T and two ANN
+configurations per seed. Logistic regression and random forest are deliberately
+not matched by that filter.
+
+Run only the Swin-T and ANN configurations on physical GPU 1 with:
+
+```bash
+mkdir -p logs
+
+CUDA_VISIBLE_DEVICES=1 nohup python -u -m examples.run_advanced_matrix \
+  --data-root input/advanced \
+  --output-root output/swin_ann_matrix \
+  --include-pattern '^(swin_|ann_)' \
+  --execute \
+  --evaluate \
+  > logs/swin_ann_matrix_gpu1.log 2>&1 &
+
+echo $! > logs/swin_ann_matrix_gpu1.pid
+```
+
+This selects 21 training jobs: five Swin-T and two ANN configurations for each
+of three seeds. Test evaluation adds real-condition evaluation for image-only
+models and real, masked, and shuffled conditions for fused Swin-T models.
 
 ## 5. Evaluate once on the held-out test set
 
@@ -127,6 +150,28 @@ python -m examples.evaluate_advanced \
   --data input/advanced/seed_13/test_dataset1.pkl \
   --output-dir output/advanced/seed_13_dinov2_gated_ordinal/test
 ```
+
+For any model trained with tabular inputs, repeat evaluation with the tabular
+inputs masked and shuffled:
+
+```bash
+python -m examples.evaluate_advanced \
+  --checkpoint output/advanced/seed_13_dinov2_gated_ordinal/best_model.pth \
+  --data input/advanced/seed_13/test_dataset1.pkl \
+  --output-dir output/advanced/seed_13_dinov2_gated_ordinal/test \
+  --tabular-condition masked
+
+python -m examples.evaluate_advanced \
+  --checkpoint output/advanced/seed_13_dinov2_gated_ordinal/best_model.pth \
+  --data input/advanced/seed_13/test_dataset1.pkl \
+  --output-dir output/advanced/seed_13_dinov2_gated_ordinal/test \
+  --tabular-condition shuffled \
+  --shuffle-seed 2026
+```
+
+Passing `--evaluate` to the matrix runner performs the real evaluation for
+image-only models and all three conditions for concatenated/gated models.
+Tabular-only training writes its test metrics and predictions directly.
 
 Run every ablation on the same test manifest within a seed. Aggregate results
 across the three seeds and use paired building-level bootstrap intervals for

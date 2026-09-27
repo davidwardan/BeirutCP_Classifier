@@ -4,8 +4,8 @@
   "data": {
     "directory": "input/advanced/seed_13",
     "dataset": "dataset1",
-    "image_size": 392,
-    "max_views": 3
+    "image_size": 224,
+    "max_views": 1
   },
   "model": {
     "num_classes": 5,
@@ -40,4 +40,3 @@
     "mae_selection_penalty": 0.1
   }
 }
-
