@@ -118,6 +118,18 @@ def main() -> None:
                     if args.execute:
                         subprocess.run(evaluation_command, check=True)
 
+    if args.evaluate:
+        report_command = [
+            sys.executable,
+            "-m",
+            "examples.summarize_advanced_results",
+            "--output-root",
+            str(args.output_root),
+        ]
+        commands.append(shlex.join(report_command))
+        if args.execute:
+            subprocess.run(report_command, check=True)
+
     command_path = args.output_root / "commands.txt"
     command_path.write_text("\n".join(commands) + "\n", encoding="utf-8")
     print(

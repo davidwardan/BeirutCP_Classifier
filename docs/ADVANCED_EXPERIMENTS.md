@@ -110,6 +110,20 @@ training, run:
 python -m examples.run_advanced_matrix
 ```
 
+When `--evaluate --execute` are supplied, the runner also generates a comparative
+report in `<output-root>/report`. To build or rebuild the report from completed
+runs without retraining, use:
+
+```bash
+python -m examples.summarize_advanced_results \
+  --output-root output/swin_ann_matrix
+```
+
+The report contains per-seed and mean/standard-deviation metric tables, primary
+metric comparison figures, real/masked/shuffled fusion-ablation figures, and
+row-normalized confusion matrices pooled across seeds. PNG and PDF versions are
+written for every figure.
+
 This writes 42 resolved configuration files and a `commands.txt` file. After
 checking the paths and GPU batch size, execute the matrix sequentially with:
 
